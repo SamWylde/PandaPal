@@ -1,0 +1,10 @@
+__pycache__
+*.env
+log.json
+beamup.json
+*.DS_Store
+
+.vscode/
+metas.db
+*.ipynb_checkpoints/
+*.ipynb

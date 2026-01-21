@@ -1,0 +1,65 @@
+{
+    "version": 2,
+    "rewrites": [
+        {
+            "source": "/(manifest\\.json)",
+            "destination": "/api/manifest.js"
+        },
+        {
+            "source": "/c/:configs/manifest\\.json",
+            "destination": "/api/manifest.js?configs=:configs"
+        },
+        {
+            "source": "/catalog/:type/:id\\.json",
+            "destination": "/api/catalog.py"
+        },
+        {
+            "source": "/catalog/:type/:id/:extras\\.json",
+            "destination": "/api/catalog.py"
+        },
+        {
+            "source": "/c/:configs/catalog/:type/:id\\.json",
+            "destination": "/api/catalog.py"
+        },
+        {
+            "source": "/c/:configs/catalog/:type/:id/:extras\\.json",
+            "destination": "/api/catalog.py"
+        },
+        {
+            "source": "/meta/:type/:id\\.json",
+            "destination": "/api/catalog.py"
+        },
+        {
+            "source": "/c/:configs/meta/:type/:id\\.json",
+            "destination": "/api/catalog.py"
+        },
+        {
+            "source": "/stream/:type/:id\\.json",
+            "destination": "/api/scraper.js"
+        },
+        {
+            "source": "/stream/:type/:id/:extra\\.json",
+            "destination": "/api/scraper.js"
+        },
+        {
+            "source": "/c/:configs/stream/:type/:id\\.json",
+            "destination": "/api/scraper.js"
+        },
+        {
+            "source": "/c/:configs/stream/:type/:id/:extra\\.json",
+            "destination": "/api/scraper.js"
+        },
+        {
+            "source": "/configure",
+            "destination": "/catalog/web/index.html"
+        },
+        {
+            "source": "/static/(.*)",
+            "destination": "/catalog/web/$1"
+        },
+        {
+            "source": "/assets/(.*)",
+            "destination": "/catalog/web/assets/$1"
+        }
+    ]
+}
