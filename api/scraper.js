@@ -65,7 +65,8 @@ function handleStream(req, res, next) {
   const { configuration, type, id } = req.params;
   const extra = req.params.extra ? qs.parse(req.url.split('/').pop().slice(0, -5)) : {}
   const ip = requestIp.getClientIp(req);
-  const host = `${req.protocol}://${req.headers.host}`;
+  const protocol = req.headers['x-forwarded-proto'] || 'http';
+  const host = `${protocol}://${req.headers.host}`;
   const configValues = { ...extra, ...parseConfiguration(configuration || ''), id, type, ip, host };
 
   addonInterface.get('stream', type, id, configValues)

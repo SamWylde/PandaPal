@@ -3,63 +3,75 @@ const Op = Sequelize.Op;
 
 const DATABASE_URI = process.env.DATABASE_URI;
 
-const database = new Sequelize(DATABASE_URI, { logging: false, pool: { max: 30, min: 5, idle: 20 * 60 * 1000 } });
+let database;
+if (DATABASE_URI) {
+  database = new Sequelize(DATABASE_URI, { logging: false, pool: { max: 30, min: 5, idle: 20 * 60 * 1000 } });
+} else {
+  database = {
+    define: () => ({
+      findOne: () => Promise.resolve(null),
+      findAll: () => Promise.resolve([]),
+      hasMany: () => { },
+      belongsTo: () => { }
+    })
+  };
+}
 
 const Torrent = database.define('torrent',
-    {
-      infoHash: { type: Sequelize.STRING(64), primaryKey: true },
-      provider: { type: Sequelize.STRING(32), allowNull: false },
-      torrentId: { type: Sequelize.STRING(128) },
-      title: { type: Sequelize.STRING(256), allowNull: false },
-      size: { type: Sequelize.BIGINT },
-      type: { type: Sequelize.STRING(16), allowNull: false },
-      uploadDate: { type: Sequelize.DATE, allowNull: false },
-      seeders: { type: Sequelize.SMALLINT },
-      trackers: { type: Sequelize.STRING(4096) },
-      languages: { type: Sequelize.STRING(4096) },
-      resolution: { type: Sequelize.STRING(16) }
-    }
+  {
+    infoHash: { type: Sequelize.STRING(64), primaryKey: true },
+    provider: { type: Sequelize.STRING(32), allowNull: false },
+    torrentId: { type: Sequelize.STRING(128) },
+    title: { type: Sequelize.STRING(256), allowNull: false },
+    size: { type: Sequelize.BIGINT },
+    type: { type: Sequelize.STRING(16), allowNull: false },
+    uploadDate: { type: Sequelize.DATE, allowNull: false },
+    seeders: { type: Sequelize.SMALLINT },
+    trackers: { type: Sequelize.STRING(4096) },
+    languages: { type: Sequelize.STRING(4096) },
+    resolution: { type: Sequelize.STRING(16) }
+  }
 );
 
 const File = database.define('file',
-    {
-      id: { type: Sequelize.BIGINT, autoIncrement: true, primaryKey: true },
-      infoHash: {
-        type: Sequelize.STRING(64),
-        allowNull: false,
-        references: { model: Torrent, key: 'infoHash' },
-        onDelete: 'CASCADE'
-      },
-      fileIndex: { type: Sequelize.INTEGER },
-      title: { type: Sequelize.STRING(256), allowNull: false },
-      size: { type: Sequelize.BIGINT },
-      imdbId: { type: Sequelize.STRING(32) },
-      imdbSeason: { type: Sequelize.INTEGER },
-      imdbEpisode: { type: Sequelize.INTEGER },
-      kitsuId: { type: Sequelize.INTEGER },
-      kitsuEpisode: { type: Sequelize.INTEGER }
+  {
+    id: { type: Sequelize.BIGINT, autoIncrement: true, primaryKey: true },
+    infoHash: {
+      type: Sequelize.STRING(64),
+      allowNull: false,
+      references: { model: Torrent, key: 'infoHash' },
+      onDelete: 'CASCADE'
     },
+    fileIndex: { type: Sequelize.INTEGER },
+    title: { type: Sequelize.STRING(256), allowNull: false },
+    size: { type: Sequelize.BIGINT },
+    imdbId: { type: Sequelize.STRING(32) },
+    imdbSeason: { type: Sequelize.INTEGER },
+    imdbEpisode: { type: Sequelize.INTEGER },
+    kitsuId: { type: Sequelize.INTEGER },
+    kitsuEpisode: { type: Sequelize.INTEGER }
+  },
 );
 
 const Subtitle = database.define('subtitle',
-    {
-      infoHash: {
-        type: Sequelize.STRING(64),
-        allowNull: false,
-        references: { model: Torrent, key: 'infoHash' },
-        onDelete: 'CASCADE'
-      },
-      fileIndex: { type: Sequelize.INTEGER, allowNull: false },
-      fileId: {
-        type: Sequelize.BIGINT,
-        allowNull: true,
-        references: { model: File, key: 'id' },
-        onDelete: 'SET NULL'
-      },
-      title: { type: Sequelize.STRING(512), allowNull: false },
-      size: { type: Sequelize.BIGINT, allowNull: false },
+  {
+    infoHash: {
+      type: Sequelize.STRING(64),
+      allowNull: false,
+      references: { model: Torrent, key: 'infoHash' },
+      onDelete: 'CASCADE'
     },
-    { timestamps: false }
+    fileIndex: { type: Sequelize.INTEGER, allowNull: false },
+    fileId: {
+      type: Sequelize.BIGINT,
+      allowNull: true,
+      references: { model: File, key: 'id' },
+      onDelete: 'SET NULL'
+    },
+    title: { type: Sequelize.STRING(512), allowNull: false },
+    size: { type: Sequelize.BIGINT, allowNull: false },
+  },
+  { timestamps: false }
 );
 
 Torrent.hasMany(File, { foreignKey: 'infoHash', constraints: false });
@@ -72,7 +84,7 @@ export function getTorrent(infoHash) {
 }
 
 export function getFiles(infoHashes) {
-  return File.findAll({ where: { infoHash: { [Op.in]: infoHashes} } });
+  return File.findAll({ where: { infoHash: { [Op.in]: infoHashes } } });
 }
 
 export function getImdbIdMovieEntries(imdbId) {
