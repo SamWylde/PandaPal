@@ -14,7 +14,7 @@ from lib.web_worker import WebWorker
 # We might need to modify WebWorker to not start threads if possible, 
 # or just ignore it since Vercel will kill the process anyway.
 
-worker = WebWorker()
+worker = WebWorker(should_start_thread=False)
 app = FastAPI()
 app.add_middleware(GZipMiddleware, minimum_size=1000)
 

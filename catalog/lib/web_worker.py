@@ -18,7 +18,7 @@ from lib.providers.catalog_provider import CatalogProvider
 db_manager = DatabaseManager.instance()
 
 class WebWorker:
-    def __init__(self) -> None:
+    def __init__(self, should_start_thread: bool = True) -> None:
         log.info(f"::=> Initializing {self.__class__.__name__}...")
         self.__rpdb_api = RPDB()
         self.__provider = CatalogProvider()
@@ -27,23 +27,28 @@ class WebWorker:
         self.__last_update: datetime = datetime.now()
 
         self.__update_interval = self.get_update_interval()
-        self.__background_threading_0 = threading.Thread(
-            name="Catalog Service", target=self.__background_catalog_updater
-        )
+        self.__background_threading_0 = None
+        if should_start_thread:
+            self.__background_threading_0 = threading.Thread(
+                name="Catalog Service", target=self.__background_catalog_updater
+            )
+            self.__background_threading_0.start()
+        else:
+            log.info("::=>[WebWorker] Skipping background thread (Serverless Mode)")
 
         if len(db_manager.cached_catalogs) == 0:
             log.info("::=>[Catalogs] No catalogs found in local cache, fetching...")
             self.__update_interval = 0
+            self.__manifest_name = "PandaPal"
+            self.__manifest_version = "1.0.0"
         else:
-            self.__manifest_name = db_manager.cached_manifest.get("name", "Unknown")
-            self.__manifest_version = db_manager.cached_manifest.get("version", "Unknown")
+            self.__manifest_name = db_manager.cached_manifest.get("name", "PandaPal")
+            self.__manifest_version = db_manager.cached_manifest.get("version", "1.0.0")
             log.info(f"::=>[Manifest Name] {self.__manifest_name}")
             log.info(f"::=>[Manifest Version] {self.__manifest_version}")
             for key, value in db_manager.cached_catalogs.items():
                 data = value.get("data") or []
                 log.info(f"::=>[Catalog] {key} - {len(data)} items")
-
-        self.__background_threading_0.start()
 
     @property
     def manifest_name(self):

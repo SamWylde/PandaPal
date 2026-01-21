@@ -28,13 +28,29 @@ class DatabaseManager:
             except Exception as e:
                 log.warning(f"Database health check failed (this is normal on first run): {str(e)}")
 
-            # Load all data into memory at startup
+            # Load data with fail-safe defaults
             self.__cached_data = {
-                "manifest": self.get_manifest(),
-                "catalogs": self.get_catalogs(),
-                "tmdb_ids": self.get_tmdb_ids(),
+                "manifest": {},
+                "catalogs": {},
+                "tmdb_ids": {},
                 "metas": {},
             }
+            
+            try:
+                self.__cached_data["manifest"] = self.get_manifest()
+            except Exception as e:
+                log.warning(f"Failed to load manifest: {e}")
+                
+            try:
+                self.__cached_data["catalogs"] = self.get_catalogs()
+            except Exception as e:
+                log.warning(f"Failed to load catalogs: {e}")
+                
+            try:
+                self.__cached_data["tmdb_ids"] = self.get_tmdb_ids()
+            except Exception as e:
+                log.warning(f"Failed to load tmdb_ids: {e}")
+                
             DatabaseManager._initialized = True
 
     def __db_update_changes(self, table_name: str, new_items: dict) -> bool:
