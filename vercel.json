@@ -2,6 +2,18 @@
     "version": 2,
     "rewrites": [
         {
+            "source": "/",
+            "destination": "/api/configure.js"
+        },
+        {
+            "source": "/configure",
+            "destination": "/api/configure.js"
+        },
+        {
+            "source": "/c/:configs/configure",
+            "destination": "/api/configure.js?configs=:configs"
+        },
+        {
             "source": "/(manifest\\.json)",
             "destination": "/api/manifest.js"
         },
@@ -50,7 +62,7 @@
             "destination": "/api/scraper.js"
         },
         {
-            "source": "/configure",
+            "source": "/cyberflix-ui",
             "destination": "/catalog/web/index.html"
         },
         {
