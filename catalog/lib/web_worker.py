@@ -148,7 +148,8 @@ class WebWorker:
                 if catalog_id is None:
                     continue
                 md5 = hashlib.md5(catalog_id.encode()).hexdigest()[:5]
-                if md5 == value:
+                # Check for exact match, prefix match or MD5 match
+                if value == catalog_id or catalog_id.startswith(value + ".") or md5 == value:
                     new_catalogs.append(catalog)
 
             config_manifest.update({"behaviorHints": {"configurable": True, "configurationRequired": False}})

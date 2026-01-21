@@ -10,15 +10,15 @@ const MochProviders = Object.values(MochOptions);
 export function manifest(config = {}) {
   const overrideManifest = getManifestOverride(config);
   const baseManifest = {
-    id: 'com.stremio.torrentio.addon',
+    id: 'com.stremio.pandapal.addon',
     version: '0.0.15',
     name: getName(overrideManifest, config),
     description: getDescription(config),
     catalogs: getCatalogs(config),
     resources: getResources(config),
     types: [Type.MOVIE, Type.SERIES, Type.ANIME, Type.OTHER],
-    background: `${config.host}/images/background_v1.jpg`,
-    logo: `${config.host}/images/logo_v1.png`,
+    background: `${config.host}/catalog/web/assets/assets/bg_image.jpeg`,
+    logo: `${config.host}/catalog/web/assets/assets/logo.png`,
     behaviorHints: {
       configurable: true,
       configurationRequired: false
@@ -35,40 +35,40 @@ export function dummyManifest() {
 }
 
 function getName(manifest, config) {
-  const rootName = manifest?.name || 'Torrentio';
+  const rootName = manifest?.name || 'PandaPal';
   const mochSuffix = MochProviders
-      .filter(moch => config[moch.key])
-      .map(moch => moch.shortName)
-      .join('/');
+    .filter(moch => config[moch.key])
+    .map(moch => moch.shortName)
+    .join('/');
   return [rootName, mochSuffix].filter(v => v).join(' ');
 }
 
 function getDescription(config) {
   const providersList = config[Providers.key] || DefaultProviders;
   const enabledProvidersDesc = Providers.options
-      .map(provider => `${provider.label}${providersList.includes(provider.key) ? '(+)' : '(-)'}`)
-      .join(', ')
+    .map(provider => `${provider.label}${providersList.includes(provider.key) ? '(+)' : '(-)'}`)
+    .join(', ')
   const enabledMochs = MochProviders
-      .filter(moch => config[moch.key])
-      .map(moch => moch.name)
-      .join(' & ');
+    .filter(moch => config[moch.key])
+    .map(moch => moch.name)
+    .join(' & ');
   const possibleMochs = MochProviders.map(moch => moch.name).join('/')
   const mochsDesc = enabledMochs ? ` and ${enabledMochs} enabled` : '';
-  return 'Provides torrent streams from scraped torrent providers.'
-      + ` Currently supports ${enabledProvidersDesc}${mochsDesc}.`
-      + ` To configure providers, ${possibleMochs} support and other settings visit https://torrentio.strem.fun`
+  return 'The ultimate Stremio addon: Cyberflix Catalogs + Torrentio Streams.'
+    + ` Currently supports ${enabledProvidersDesc}${mochsDesc}.`
+    + ` To configure providers, ${possibleMochs} support and other settings visit the PandaPal configuration page.`
 }
 
 function getCatalogs(config) {
   return MochProviders
-      .filter(moch => showDebridCatalog(config) && config[moch.key])
-      .map(moch => moch.catalogs.map(catalogName => ({
-        id: catalogName ? `torrentio-${moch.key}-${catalogName.toLowerCase()}` : `torrentio-${moch.key}`,
-        name: catalogName ? `${moch.name} ${catalogName}` : `${moch.name}`,
-        type: 'other',
-        extra: [{ name: 'skip' }],
-      })))
-      .reduce((a, b) => a.concat(b), []);
+    .filter(moch => showDebridCatalog(config) && config[moch.key])
+    .map(moch => moch.catalogs.map(catalogName => ({
+      id: catalogName ? `torrentio-${moch.key}-${catalogName.toLowerCase()}` : `torrentio-${moch.key}`,
+      name: catalogName ? `${moch.name} ${catalogName}` : `${moch.name}`,
+      type: 'other',
+      extra: [{ name: 'skip' }],
+    })))
+    .reduce((a, b) => a.concat(b), []);
 }
 
 function getResources(config) {

@@ -12,10 +12,7 @@ html {
 }
 
 html {
-   background-size: auto 100%;
-   background-size: cover;
-   background-position: center center;
-   background-repeat: repeat-y;
+   background-color: #111; /* Dark background as requested */
 }
 
 body {
@@ -62,7 +59,7 @@ ul {
 }
 
 a {
-   color: green
+   color: #8A5AAB;
 }
 
 a.install-link {
@@ -97,9 +94,9 @@ a.install-link {
 #addon {
    width: 90vh;
    margin: auto;
-   padding-left: 10%;
-   padding-right: 10%;
-   background: rgba(0, 0, 0, 0.60);
+   padding: 5vh 10%;
+   background: rgba(20, 20, 20, 0.95);
+   box-shadow: 0 0 20px rgba(0,0,0,0.5);
 }
 
 .logo {
@@ -111,6 +108,7 @@ a.install-link {
 
 .logo img {
    width: 100%;
+   border-radius: 50%;
 }
 
 .name, .version {
@@ -144,6 +142,8 @@ a.install-link {
 
 .separator {
    margin-bottom: 4vh;
+    border-bottom: 1px solid rgba(255,255,255,0.1);
+    padding-bottom: 2vh;
 }
 
 .label {
@@ -151,6 +151,8 @@ a.install-link {
   font-weight: 600;
   padding: 0;
   line-height: inherit;
+  margin-top: 2vh;
+  display: block;
 }
 
 .btn-group, .multiselect-container {
@@ -181,7 +183,7 @@ a.install-link {
 
 .input:focus, .btn:focus {
   outline: none; 
-  box-shadow: 0 0 0 2pt rgb(30, 144, 255, 0.7);
+  box-shadow: 0 0 0 2pt rgb(138, 90, 171, 0.7);
 }
 `;
 import { Providers, QualityFilter, SizeFilter } from './filter.js';
@@ -192,55 +194,77 @@ import { MochOptions } from '../moch/moch.js';
 import { PreConfigurations } from './configuration.js';
 
 export default function landingTemplate(manifest, config = {}) {
-  const providers = config[Providers.key] || Providers.options.map(provider => provider.key);
-  const sort = config[SortOptions.key] || SortOptions.options.qualitySeeders.key;
-  const languages = config[LanguageOptions.key] || [];
-  const qualityFilters = config[QualityFilter.key] || [];
-  const sizeFilter = (config[SizeFilter.key] || []).join(',');
-  const limit = config.limit || '';
+   const providers = config[Providers.key] || Providers.options.map(provider => provider.key);
+   const sort = config[SortOptions.key] || SortOptions.options.qualitySeeders.key;
+   const languages = config[LanguageOptions.key] || [];
+   const qualityFilters = config[QualityFilter.key] || [];
+   const sizeFilter = (config[SizeFilter.key] || []).join(',');
+   const limit = config.limit || '';
+   const catalogs = config.catalogs || []; // New catalog config
 
-  const debridProvider = Object.keys(MochOptions).find(mochKey => config[mochKey]);
-  const debridOptions = config[DebridOptions.key] || [];
-  const realDebridApiKey = config[MochOptions.realdebrid.key] || '';
-  const premiumizeApiKey = config[MochOptions.premiumize.key] || '';
-  const allDebridApiKey = config[MochOptions.alldebrid.key] || '';
-  const debridLinkApiKey = config[MochOptions.debridlink.key] || '';
-  const easyDebridApiKey = config[MochOptions.easydebrid.key] || '';
-  const offcloudApiKey = config[MochOptions.offcloud.key] || '';
-  const torboxApiKey = config[MochOptions.torbox.key] || '';
-  const putioKey = config[MochOptions.putio.key] || '';
-  const putioClientId = putioKey.replace(/@.*/, '');
-  const putioToken = putioKey.replace(/.*@/, '');
+   // Cyberflix catalogs (Hardcoded list based on catalog_list.py)
+   const cyberflixCatalogs = [
+      { id: 'premieres', name: 'Premieres' },
+      { id: 'trending_today', name: 'Trending Today' },
+      { id: 'trending', name: 'Trending This Week' },
+      { id: 'blockbusters', name: 'Blockbusters' },
+      { id: 'awards', name: 'Award Winners' },
+      { id: 'netflix', name: 'Netflix' },
+      { id: 'disney_plus', name: 'Disney+' },
+      { id: 'hbo_max', name: 'HBO Max' },
+      { id: 'amazon_prime', name: 'Amazon Prime' },
+      { id: 'hulu', name: 'Hulu' },
+      { id: 'anime', name: 'Anime' },
+      { id: 'kids', name: 'Kids' }
+   ];
 
-  const background = manifest.background || 'https://dl.strem.io/addon-background.jpg';
-  const logo = manifest.logo || 'https://dl.strem.io/addon-logo.png';
-  const providersHTML = Providers.options
+   const debridProvider = Object.keys(MochOptions).find(mochKey => config[mochKey]);
+   const debridOptions = config[DebridOptions.key] || [];
+   const realDebridApiKey = config[MochOptions.realdebrid.key] || '';
+   const premiumizeApiKey = config[MochOptions.premiumize.key] || '';
+   const allDebridApiKey = config[MochOptions.alldebrid.key] || '';
+   const debridLinkApiKey = config[MochOptions.debridlink.key] || '';
+   const easyDebridApiKey = config[MochOptions.easydebrid.key] || '';
+   const offcloudApiKey = config[MochOptions.offcloud.key] || '';
+   const torboxApiKey = config[MochOptions.torbox.key] || '';
+   const putioKey = config[MochOptions.putio.key] || '';
+   const putioClientId = putioKey.replace(/@.*/, '');
+   const putioToken = putioKey.replace(/.*@/, '');
+
+   const background = manifest.background || 'https://dl.strem.io/addon-background.jpg';
+   const logo = manifest.logo || 'https://dl.strem.io/addon-logo.png';
+   const providersHTML = Providers.options
       .map(provider => `<option value="${provider.key}">${provider.foreign ? provider.foreign + ' ' : ''}${provider.label}</option>`)
       .join('\n');
-  const sortOptionsHTML = Object.values(SortOptions.options)
+   const sortOptionsHTML = Object.values(SortOptions.options)
       .map((option, i) => `<option value="${option.key}" ${i === 0 ? 'selected' : ''}>${option.description}</option>`)
       .join('\n');
-  const languagesOptionsHTML = LanguageOptions.options
+   const languagesOptionsHTML = LanguageOptions.options
       .map((option, i) => `<option value="${option.key}">${option.label}</option>`)
       .join('\n');
-  const qualityFiltersHTML = Object.values(QualityFilter.options)
+   const qualityFiltersHTML = Object.values(QualityFilter.options)
       .map(option => `<option value="${option.key}">${option.label}</option>`)
       .join('\n');
-  const debridProvidersHTML = Object.values(MochOptions)
+   const debridProvidersHTML = Object.values(MochOptions)
       .map(moch => `<option value="${moch.key}">${moch.name}</option>`)
       .join('\n');
-  const debridOptionsHTML = Object.values(DebridOptions.options)
+   const debridOptionsHTML = Object.values(DebridOptions.options)
       .map(option => `<option value="${option.key}">${option.description}</option>`)
       .join('\n');
-  const stylizedTypes = manifest.types
+
+   const catalogsHTML = cyberflixCatalogs
+      .map(cat => `<option value="${cat.id}">${cat.name}</option>`)
+      .join('\n');
+
+   const stylizedTypes = manifest.types
       .map(t => t[0].toUpperCase() + t.slice(1) + (t !== 'series' ? 's' : ''));
-  const preConfigurationObject = Object.entries(PreConfigurations)
+   const preConfigurationObject = Object.entries(PreConfigurations)
       .map(([key, config]) => `${key}: '${config.serialized}'`)
       .join(',');
 
-  return `
+   return `
    <!DOCTYPE html>
-   <html style="background-image: url(${background});">
+   <html>
 
    <head>
       <meta charset="utf-8">
@@ -267,14 +291,23 @@ export default function landingTemplate(manifest, config = {}) {
 
          <div class="separator"></div>
 
-         <h3 class="gives">This addon has more :</h3>
+         <h3 class="gives">Capabilities:</h3>
          <ul>
+            <li>Cyberflix Catalogs</li>
+            <li>Torrentio Streams</li>
             ${stylizedTypes.map(t => `<li>${t}</li>`).join('')}
          </ul>
 
          <div class="separator"></div>
          
-         <label class="label" for="iProviders">Providers:</label>
+         <label class="label" for="iCatalogs">Cyberflix Catalogs:</label>
+         <select id="iCatalogs" class="input" onchange="generateInstallLink()" name="catalogs[]" multiple="multiple">
+            ${catalogsHTML}
+         </select>
+
+         <div class="separator"></div>
+         
+         <label class="label" for="iProviders">Torrentio Providers:</label>
          <select id="iProviders" class="input" onchange="generateInstallLink()" name="providers[]" multiple="multiple">
             ${providersHTML}
          </select>
@@ -367,41 +400,43 @@ export default function landingTemplate(manifest, config = {}) {
         <div class="separator"></div>
       </div>
       <script type="text/javascript">
-          $(document).ready(function() {
-              const isTvMedia = window.matchMedia("tv").matches;
-              const isTvAgent = /\\b(?:tv|wv)\\b/i.test(navigator.userAgent)
-              const isDesktopMedia = window.matchMedia("(pointer:fine)").matches;
-              if (isDesktopMedia && !isTvMedia && !isTvAgent) {
-                $('#iProviders').multiselect({ 
-                    nonSelectedText: 'All providers',
-                    buttonTextAlignment: 'left',
-                    onChange: () => generateInstallLink()
-                });
-                $('#iProviders').multiselect('select', [${providers.map(provider => '"' + provider + '"')}]);
-                $('#iLanguages').multiselect({ 
-                    nonSelectedText: 'None',
-                    buttonTextAlignment: 'left',
-                    onChange: () => generateInstallLink()
-                });
-                $('#iLanguages').multiselect('select', [${languages.map(language => '"' + language + '"')}]);
-                $('#iQualityFilter').multiselect({ 
-                    nonSelectedText: 'None',
-                    buttonTextAlignment: 'left',
-                    onChange: () => generateInstallLink()
-                });
-                $('#iQualityFilter').multiselect('select', [${qualityFilters.map(filter => '"' + filter + '"')}]);
-                $('#iDebridOptions').multiselect({ 
-                    nonSelectedText: 'None',
-                    buttonTextAlignment: 'left',
-                    onChange: () => generateInstallLink()
-                });
-                $('#iDebridOptions').multiselect('select', [${debridOptions.map(option => '"' + option + '"')}]);
-              } else {
-                $('#iProviders').val([${providers.map(provider => '"' + provider + '"')}]);
-                $('#iLanguages').val([${languages.map(language => '"' + language + '"')}]);
-                $('#iQualityFilter').val([${qualityFilters.map(filter => '"' + filter + '"')}]);
-                $('#iDebridOptions').val([${debridOptions.map(option => '"' + option + '"')}]);
-              }
+              const commonOptions = {
+                  nonSelectedText: 'None',
+                  buttonTextAlignment: 'left',
+                  onChange: () => generateInstallLink()
+              };
+
+              $('#iCatalogs').multiselect({ ...commonOptions, nonSelectedText: 'All catalogs' });
+              $('#iCatalogs').multiselect('select', [${catalogs.map(c => '"' + c + '"')}]);
+
+              $('#iProviders').multiselect({ 
+                  nonSelectedText: 'All providers',
+                  buttonTextAlignment: 'left',
+                  onChange: () => generateInstallLink()
+              });
+              $('#iProviders').multiselect('select', [${providers.map(provider => '"' + provider + '"')}]);
+
+              $('#iLanguages').multiselect({ 
+                  nonSelectedText: 'None',
+                  buttonTextAlignment: 'left',
+                  onChange: () => generateInstallLink()
+              });
+              $('#iLanguages').multiselect('select', [${languages.map(language => '"' + language + '"')}]);
+              
+              $('#iQualityFilter').multiselect({ 
+                  nonSelectedText: 'None',
+                  buttonTextAlignment: 'left',
+                  onChange: () => generateInstallLink()
+              });
+              $('#iQualityFilter').multiselect('select', [${qualityFilters.map(filter => '"' + filter + '"')}]);
+              
+              $('#iDebridOptions').multiselect({ 
+                  nonSelectedText: 'None',
+                  buttonTextAlignment: 'left',
+                  onChange: () => generateInstallLink()
+              });
+              $('#iDebridOptions').multiselect('select', [${debridOptions.map(option => '"' + option + '"')}]);
+
               $('#iDebridProviders').val("${debridProvider || 'none'}");
               $('#iRealDebrid').val("${realDebridApiKey}");
               $('#iPremiumize').val("${premiumizeApiKey}");
@@ -415,6 +450,7 @@ export default function landingTemplate(manifest, config = {}) {
               $('#iSort').val("${sort}");
               $('#iLimit').val("${limit}");
               $('#iSizeFilter').val("${sizeFilter}");
+              
               generateInstallLink();
               debridProvidersChange();
           });
@@ -442,6 +478,7 @@ export default function landingTemplate(manifest, config = {}) {
           }
           
           function generateInstallLink() {
+              const catalogsValue = $('#iCatalogs').val().join(',') || '';
               const providersList = $('#iProviders').val() || [];
               const providersValue = providersList.join(',');
               const qualityFilterValue = $('#iQualityFilter').val().join(',') || '';
@@ -461,7 +498,7 @@ export default function landingTemplate(manifest, config = {}) {
               const putioClientIdValue = $('#iPutioClientId').val() || '';
               const putioTokenValue = $('#iPutioToken').val() || '';
               
-              
+              const catalogs = catalogsValue.length && catalogsValue;
               const providers = providersList.length && providersList.length < ${Providers.options.length} && providersValue;
               const qualityFilters = qualityFilterValue.length && qualityFilterValue;
               const sort = sortValue !== '${SortOptions.options.qualitySeeders.key}' && sortValue;
@@ -483,6 +520,7 @@ export default function landingTemplate(manifest, config = {}) {
                 ${preConfigurationObject}
               };
               let configurationValue = [
+                    ['catalogs', catalogs],
                     ['${Providers.key}', providers],
                     ['${SortOptions.key}', sort],
                     ['${LanguageOptions.key}', languages],
