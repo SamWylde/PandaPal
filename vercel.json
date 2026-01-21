@@ -1,5 +1,11 @@
 {
     "version": 2,
+    "crons": [
+        {
+            "path": "/api/crawl",
+            "schedule": "0 3 * * *"
+        }
+    ],
     "rewrites": [
         {
             "source": "/",
@@ -12,6 +18,10 @@
         {
             "source": "/c/:configs/configure",
             "destination": "/api/configure.js?configs=:configs"
+        },
+        {
+            "source": "/api/crawl",
+            "destination": "/api/crawl.py"
         },
         {
             "source": "/catalog/manifest\\.json",

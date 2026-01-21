@@ -178,9 +178,12 @@ class Builder:
             return []
         return imdb_infos
 
-    def build(self):
-        log.info("Caching catalongs...")
-        configs = CatalogList.get_catalog_configs()
+    def build(self, configs: list[CatalogConfig] = None):
+        if configs is None:
+            log.info("Caching catalongs...")
+            configs = CatalogList.get_catalog_configs()
+        else:
+            log.info(f"Caching {len(configs)} catalogs...")
 
         manifest_catalog = []
         current_catalog = ""
