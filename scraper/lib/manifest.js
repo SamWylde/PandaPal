@@ -54,7 +54,7 @@ function getDescription(config) {
     .join(' & ');
   const possibleMochs = MochProviders.map(moch => moch.name).join('/')
   const mochsDesc = enabledMochs ? ` and ${enabledMochs} enabled` : '';
-  return 'The ultimate Stremio addon: Cyberflix Catalogs + Torrentio Streams.'
+  return 'Thomas is tired of all the others not working!'
     + ` Currently supports ${enabledProvidersDesc}${mochsDesc}.`
     + ` To configure providers, ${possibleMochs} support and other settings visit the PandaPal configuration page.`
 }

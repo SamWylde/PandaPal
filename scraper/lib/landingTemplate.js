@@ -19,7 +19,7 @@ body {
    display: flex;
    background-color: transparent;
    font-family: 'Open Sans', Arial, sans-serif;
-   color: white;
+   color: #333; /* Dark text for light background */
 }
 
 h1 {
@@ -44,7 +44,7 @@ h3,
 p,
 label {
    margin: 0;
-   text-shadow: 0 0 1vh rgba(0, 0, 0, 0.15);
+   text-shadow: none; /* Remove shadow for cleaner look on light bg */
 }
 
 p {
@@ -95,8 +95,8 @@ a.install-link {
    width: 90vh;
    margin: auto;
    padding: 5vh 10%;
-   background: rgba(20, 20, 20, 0.95);
-   box-shadow: 0 0 20px rgba(0,0,0,0.5);
+   background: #f0f0f0; /* Light grey background */
+   box-shadow: 0 0 20px rgba(0,0,0,0.2);
 }
 
 .logo {
@@ -185,6 +185,14 @@ a.install-link {
   outline: none; 
   box-shadow: 0 0 0 2pt rgb(138, 90, 171, 0.7);
 }
+
+.description-text {
+  font-size: 1.4vh;
+  color: #666;
+  margin-bottom: 0.5vh;
+  margin-top: -0.5vh;
+  font-style: italic;
+}
 `;
 import { Providers, QualityFilter, SizeFilter } from './filter.js';
 import { SortOptions } from './sort.js';
@@ -194,14 +202,6 @@ import { MochOptions } from '../moch/moch.js';
 import { PreConfigurations } from './configuration.js';
 
 export default function landingTemplate(manifest, config = {}) {
-   const providers = config[Providers.key] || Providers.options.map(provider => provider.key);
-   const sort = config[SortOptions.key] || SortOptions.options.qualitySeeders.key;
-   const languages = config[LanguageOptions.key] || [];
-   const qualityFilters = config[QualityFilter.key] || [];
-   const sizeFilter = (config[SizeFilter.key] || []).join(',');
-   const limit = config.limit || '';
-   const catalogs = config.catalogs || []; // New catalog config
-
    // Cyberflix catalogs (Hardcoded list based on catalog_list.py)
    const cyberflixCatalogs = [
       { id: 'premieres', name: 'Premieres' },
@@ -217,6 +217,14 @@ export default function landingTemplate(manifest, config = {}) {
       { id: 'anime', name: 'Anime' },
       { id: 'kids', name: 'Kids' }
    ];
+
+   const providers = config[Providers.key] || Providers.options.map(provider => provider.key);
+   const sort = config[SortOptions.key] || SortOptions.options.qualitySeeders.key;
+   const languages = config[LanguageOptions.key] || [];
+   const qualityFilters = config[QualityFilter.key] || [];
+   const sizeFilter = (config[SizeFilter.key] || []).join(',');
+   const limit = config.limit || '';
+   const catalogs = config.catalogs || cyberflixCatalogs.map(c => c.id); // Default to all catalogs selected
 
    const debridProvider = Object.keys(MochOptions).find(mochKey => config[mochKey]);
    const debridOptions = config[DebridOptions.key] || [];
@@ -301,6 +309,7 @@ export default function landingTemplate(manifest, config = {}) {
          <div class="separator"></div>
          
          <label class="label" for="iCatalogs">Cyberflix Catalogs:</label>
+         <div class="description-text">Select which catalogs to display in Stremio (e.g., Netflix, Trending).</div>
          <select id="iCatalogs" class="input" onchange="generateInstallLink()" name="catalogs[]" multiple="multiple">
             ${catalogsHTML}
          </select>
@@ -308,33 +317,40 @@ export default function landingTemplate(manifest, config = {}) {
          <div class="separator"></div>
          
          <label class="label" for="iProviders">Torrentio Providers:</label>
+         <div class="description-text">Choose the torrent sites to scrape for streams.</div>
          <select id="iProviders" class="input" onchange="generateInstallLink()" name="providers[]" multiple="multiple">
             ${providersHTML}
          </select>
          
          <label class="label" for="iSort">Sorting:</label>
+         <div class="description-text">How streams are ordered (e.g., by quality or seeders).</div>
          <select id="iSort" class="input" onchange="sortModeChange()">
            ${sortOptionsHTML}
          </select>
          
          <label class="label" for="iLanguages">Priority foreign language:</label>
+         <div class="description-text">Prefer dubs/subs in this language if available.</div>
          <select id="iLanguages" class="input" onchange="generateInstallLink()" name="languages[]" multiple="multiple" title="Streams with the selected dubs/subs language will be shown on the top">
            ${languagesOptionsHTML}
          </select>
          
          <label class="label" for="iQualityFilter">Exclude qualities/resolutions:</label>
+         <div class="description-text">Hide streams with these qualities (e.g., 4K, CAM).</div>
          <select id="iQualityFilter" class="input" onchange="generateInstallLink()" name="qualityFilters[]" multiple="multiple">
             ${qualityFiltersHTML}
          </select>
          
          <label class="label" id="iLimitLabel" for="iLimit">Max results per quality:</label>
+         <div class="description-text">Limit the number of streams shown per resolution.</div>
          <input type="text" inputmode="numeric" pattern="[0-9]*" id="iLimit" onchange="generateInstallLink()" class="input" placeholder="All results">
          
          <label class="label" id="iSizeFilterLabel" for="iSizeFilter">Video size limit:</label>
+         <div class="description-text">Max file size allowed (e.g., 2GB).</div>
          <input type="text" pattern="([0-9.]*(?:MB|GB),?)+" id="iSizeFilter" onchange="generateInstallLink()" class="input" placeholder="No limit" title="Returned videos cannot exceed this size, use comma to have different size for movies and series. Examples: 5GB ; 800MB ; 10GB,2GB">
          
          
          <label class="label" for="iDebridProviders">Debrid provider:</label>
+         <div class="description-text">Link a premium service for faster, secure streaming.</div>
          <select id="iDebridProviders" class="input" onchange="debridProvidersChange()">
             <option value="none" selected>None</option>
             ${debridProvidersHTML}

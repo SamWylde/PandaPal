@@ -14,7 +14,7 @@ export default async function (req, res) {
     ...tManifest,
     id: 'brazuca.pandapal',
     name: 'PandaPal',
-    description: 'The ultimate Stremio addon: Cyberflix Catalogs + Torrentio Streams.',
+    description: 'Thomas is tired of all the others not working!',
     version: '1.0.0',
     behaviorHints: {
       configurable: true,
