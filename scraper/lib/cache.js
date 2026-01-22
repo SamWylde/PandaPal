@@ -17,13 +17,22 @@ const MESSAGE_VIDEO_URL_TTL = 60 * 1000; // 1 minutes
 const DATABASE_URI = process.env.DATABASE_URI;
 
 const memoryCache = new KeyvCacheableMemory({ ttl: MESSAGE_VIDEO_URL_TTL, lruSize: Infinity });
-const remoteCache = DATABASE_URI && new KeyvPostgres(DATABASE_URI, {
-  table: 'torrentio_addon_cache',
-  ssl: {
-    require: true,
-    rejectUnauthorized: false
+
+let remoteCache;
+if (DATABASE_URI && DATABASE_URI.startsWith('postgres') && !DATABASE_URI.includes('127.0.0.1') && !DATABASE_URI.includes('localhost')) {
+  remoteCache = new KeyvPostgres(DATABASE_URI, {
+    table: 'torrentio_addon_cache',
+    ssl: {
+      require: true,
+      rejectUnauthorized: false
+    }
+  });
+} else {
+  // remoteCache remains undefined
+  if (DATABASE_URI) {
+    console.warn('Cache: DATABASE_URI found but invalid/localhost. Skipping remote cache connection.');
   }
-});
+}
 
 async function cacheWrap(cache, key, method, ttl) {
   if (!cache) {

@@ -35,9 +35,11 @@ class DatabaseManager:
                 log.error(f"CRITICAL: Failed to initialize Supabase client: {e}")
                 # Create a dummy object to prevent errors on attribute access
                 class DummySupabase:
-                    def table(self, *args, **kwargs): return self
-                    def select(self, *args, **kwargs): return self
-                    def rpc(self, *args, **kwargs): return self
+                    def __getattr__(self, name):
+                        def method(*args, **kwargs):
+                            return self
+                        return method
+
                     def execute(self, *args, **kwargs):
                         class DummyResponse:
                             def __init__(self):
