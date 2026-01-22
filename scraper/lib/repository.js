@@ -108,3 +108,109 @@ export async function getKitsuIdSeriesEntries(kitsuId, episode) {
   }
   return data;
 }
+
+// ===== SAVE FUNCTIONS FOR REAL-TIME SCRAPING =====
+
+const CACHE_HOURS = 24;
+
+/**
+ * Save torrents to Supabase (non-blocking)
+ */
+export async function saveTorrents(torrents) {
+  if (!supabase || !torrents.length) return;
+
+  try {
+    const now = new Date().toISOString();
+
+    // Prepare torrent records
+    const torrentRecords = torrents.map(t => ({
+      infoHash: t.infoHash,
+      provider: t.provider,
+      title: t.title,
+      size: t.size,
+      type: t.type,
+      uploadDate: t.uploadDate?.toISOString() || now,
+      seeders: t.seeders,
+      resolution: t.resolution,
+      fetched_at: now
+    }));
+
+    // Upsert torrents
+    const { error: torrentError } = await supabase
+      .from('torrent')
+      .upsert(torrentRecords, { onConflict: 'infoHash' });
+
+    if (torrentError) {
+      console.error('Error saving torrents:', torrentError);
+      return;
+    }
+
+    // Prepare file records
+    const fileRecords = torrents.map(t => ({
+      infoHash: t.infoHash,
+      title: t.title,
+      size: t.size,
+      imdbId: t.imdbId,
+      imdbSeason: t.imdbSeason,
+      imdbEpisode: t.imdbEpisode,
+      kitsuId: t.kitsuId,
+      kitsuEpisode: t.kitsuEpisode,
+      fetched_at: now
+    }));
+
+    // Upsert files (ignore duplicates)
+    const { error: fileError } = await supabase
+      .from('file')
+      .upsert(fileRecords, { onConflict: 'infoHash,title', ignoreDuplicates: true });
+
+    if (fileError && !fileError.message?.includes('duplicate')) {
+      console.error('Error saving files:', fileError);
+    }
+
+    console.log(`Repository: Saved ${torrents.length} torrents to Supabase`);
+  } catch (error) {
+    console.error('Repository: Error in saveTorrents:', error);
+  }
+}
+
+/**
+ * Get cached torrents if not older than CACHE_HOURS
+ */
+export async function getCachedTorrents(imdbId, kitsuId, type, season, episode) {
+  if (!supabase) return [];
+
+  try {
+    const cacheThreshold = new Date(Date.now() - CACHE_HOURS * 60 * 60 * 1000).toISOString();
+
+    let query = supabase
+      .from('file')
+      .select('*, torrent!inner(*)')
+      .gte('fetched_at', cacheThreshold);
+
+    if (imdbId) {
+      query = query.eq('imdbId', imdbId);
+    }
+    if (kitsuId) {
+      query = query.eq('kitsuId', kitsuId);
+    }
+    if (season !== undefined) {
+      query = query.eq('imdbSeason', season);
+    }
+    if (episode !== undefined) {
+      query = query.eq('imdbEpisode', episode);
+    }
+
+    const { data, error } = await query.limit(500);
+
+    if (error) {
+      console.error('Error getting cached torrents:', error);
+      return [];
+    }
+
+    console.log(`Repository: Cache hit - ${data?.length || 0} torrents for ${imdbId || kitsuId}`);
+    return data || [];
+  } catch (error) {
+    console.error('Repository: Error in getCachedTorrents:', error);
+    return [];
+  }
+}

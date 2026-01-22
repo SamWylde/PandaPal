@@ -4,6 +4,7 @@ import { dummyManifest } from './lib/manifest.js';
 import { cacheWrapStream } from './lib/cache.js';
 import { toStreamInfo, applyStaticInfo } from './lib/streamInfo.js';
 import * as repository from './lib/repository.js';
+import { searchTorrents, deduplicateTorrents } from './lib/realtime.js';
 import applySorting from './lib/sort.js';
 import applyFilters from './lib/filter.js';
 import { applyMochs, getMochCatalog, getMochItemMeta } from './moch/moch.js';
@@ -27,86 +28,141 @@ builder.defineStreamHandler((args) => {
   }
 
   return requestQueue.wrap(args.id, () => resolveStreams(args))
-      .then(streams => applyFilters(streams, args.extra))
-      .then(streams => applySorting(streams, args.extra, args.type))
-      .then(streams => applyStaticInfo(streams))
-      .then(streams => applyMochs(streams, args.extra))
-      .then(streams => enrichCacheParams(streams))
-      .catch(error => {
-        return Promise.reject(`Failed request ${args.id}: ${error}`);
-      });
+    .then(streams => applyFilters(streams, args.extra))
+    .then(streams => applySorting(streams, args.extra, args.type))
+    .then(streams => applyStaticInfo(streams))
+    .then(streams => applyMochs(streams, args.extra))
+    .then(streams => enrichCacheParams(streams))
+    .catch(error => {
+      console.error(`Failed request ${args.id}:`, error);
+      return { streams: [], cacheMaxAge: CACHE_MAX_AGE_EMPTY };
+    });
 });
 
 builder.defineCatalogHandler((args) => {
   const [_, mochKey, catalogId] = args.id.split('-');
   console.log(`Incoming catalog ${args.id} request with skip=${args.extra.skip || 0}`)
   return getMochCatalog(mochKey, catalogId, args.extra)
-      .then(metas => ({
-        metas: metas,
-        cacheMaxAge: CATALOG_CACHE_MAX_AGE
-      }))
-      .catch(error => {
-        return Promise.reject(`Failed retrieving catalog ${args.id}: ${JSON.stringify(error.message || error)}`);
-      });
+    .then(metas => ({
+      metas: metas,
+      cacheMaxAge: CATALOG_CACHE_MAX_AGE
+    }))
+    .catch(error => {
+      return Promise.reject(`Failed retrieving catalog ${args.id}: ${JSON.stringify(error.message || error)}`);
+    });
 })
 
 builder.defineMetaHandler((args) => {
   const [mochKey, metaId] = args.id.split(':');
   console.log(`Incoming debrid meta ${args.id} request`)
   return getMochItemMeta(mochKey, metaId, args.extra)
-      .then(meta => ({
-        meta: meta,
-        cacheMaxAge: metaId === 'Downloads' ? 0 : CACHE_MAX_AGE
-      }))
-      .catch(error => {
-        return Promise.reject(`Failed retrieving catalog meta ${args.id}: ${JSON.stringify(error)}`);
-      });
+    .then(meta => ({
+      meta: meta,
+      cacheMaxAge: metaId === 'Downloads' ? 0 : CACHE_MAX_AGE
+    }))
+    .catch(error => {
+      return Promise.reject(`Failed retrieving catalog meta ${args.id}: ${JSON.stringify(error)}`);
+    });
 })
 
 async function resolveStreams(args) {
-  return cacheWrapStream(args.id, () => newLimiter(() => streamHandler(args)
-      .then(records => records
-          .sort((a, b) => b.torrent.seeders - a.torrent.seeders || b.torrent.uploadDate - a.torrent.uploadDate)
-          .map(record => toStreamInfo(record)))));
+  return cacheWrapStream(args.id, () => newLimiter(() => streamHandler(args)));
 }
 
 async function streamHandler(args) {
-  // console.log(`Pending count: ${newLimiter.pendingCount}, active count: ${newLimiter.activeCount}`, )
-  if (args.type === Type.MOVIE) {
-    return movieRecordsHandler(args);
-  } else if (args.type === Type.SERIES) {
-    return seriesRecordsHandler(args);
+  console.log(`[StreamHandler] Processing ${args.id} (${args.type})`);
+
+  // Parse the ID
+  const { imdbId, kitsuId, season, episode } = parseId(args.id);
+
+  // 1. Check Supabase cache first
+  const cachedResults = await repository.getCachedTorrents(imdbId, kitsuId, args.type, season, episode);
+
+  if (cachedResults.length > 0) {
+    console.log(`[StreamHandler] Cache hit: ${cachedResults.length} results`);
+    return formatResults(cachedResults);
   }
-  return Promise.reject('not supported type');
+
+  // 2. Real-time search
+  console.log(`[StreamHandler] Cache miss, starting real-time search...`);
+  const torrents = await searchTorrents({
+    imdbId,
+    kitsuId,
+    type: args.type,
+    season,
+    episode,
+    title: args.extra?.name // Fallback title for anime
+  });
+
+  // 3. Deduplicate
+  const uniqueTorrents = deduplicateTorrents(torrents);
+
+  // 4. Save to Supabase (non-blocking)
+  if (uniqueTorrents.length > 0) {
+    repository.saveTorrents(uniqueTorrents).catch(err => {
+      console.error('[StreamHandler] Background save error:', err);
+    });
+  }
+
+  // 5. Return formatted results
+  return formatRealtimeResults(uniqueTorrents);
 }
 
-async function seriesRecordsHandler(args) {
-  if (args.id.match(/^tt\d+:\d+:\d+$/)) {
-    const parts = args.id.split(':');
-    const imdbId = parts[0];
-    const season = parts[1] !== undefined ? parseInt(parts[1], 10) : 1;
-    const episode = parts[2] !== undefined ? parseInt(parts[2], 10) : 1;
-    return repository.getImdbIdSeriesEntries(imdbId, season, episode);
-  } else if (args.id.match(/^kitsu:\d+(?::\d+)?$/i)) {
-    const parts = args.id.split(':');
-    const kitsuId = parts[1];
-    const episode = parts[2] !== undefined ? parseInt(parts[2], 10) : undefined;
-    return episode !== undefined
-        ? repository.getKitsuIdSeriesEntries(kitsuId, episode)
-        : repository.getKitsuIdMovieEntries(kitsuId);
+function parseId(id) {
+  // IMDB movie: tt1375666
+  // IMDB series: tt0944947:1:1 (season:episode)
+  // Kitsu: kitsu:12345 or kitsu:12345:1 (episode)
+
+  let imdbId, kitsuId, season, episode;
+
+  if (id.match(/^tt\d+$/)) {
+    imdbId = id;
+  } else if (id.match(/^tt\d+:\d+:\d+$/)) {
+    const parts = id.split(':');
+    imdbId = parts[0];
+    season = parseInt(parts[1]);
+    episode = parseInt(parts[2]);
+  } else if (id.match(/^kitsu:\d+$/i)) {
+    kitsuId = id.split(':')[1];
+  } else if (id.match(/^kitsu:\d+:\d+$/i)) {
+    const parts = id.split(':');
+    kitsuId = parts[1];
+    episode = parseInt(parts[2]);
   }
-  return Promise.resolve([]);
+
+  return { imdbId, kitsuId, season, episode };
 }
 
-async function movieRecordsHandler(args) {
-  if (args.id.match(/^tt\d+$/)) {
-    const parts = args.id.split(':');
-    const imdbId = parts[0];
-    return repository.getImdbIdMovieEntries(imdbId);
-  } else if (args.id.match(/^kitsu:\d+(?::\d+)?$/i)) {
-    return seriesRecordsHandler(args);
-  }
-  return Promise.resolve([]);
+function formatResults(cachedResults) {
+  // Format cached Supabase results to match expected structure
+  return cachedResults.map(record => ({
+    ...record,
+    torrent: record.torrent || {
+      infoHash: record.infoHash,
+      seeders: record.seeders || 0,
+      uploadDate: record.uploadDate
+    }
+  })).map(record => toStreamInfo(record));
+}
+
+function formatRealtimeResults(torrents) {
+  // Format real-time results to streams
+  return torrents.map(t => ({
+    name: `[${t.provider}] ${t.resolution || ''}`,
+    title: `${t.title}\n👤 ${t.seeders || 0} · 💾 ${formatSize(t.size)}`,
+    infoHash: t.infoHash,
+    behaviorHints: {
+      bingeGroup: `torrentio|${t.infoHash}`
+    }
+  }));
+}
+
+function formatSize(bytes) {
+  if (!bytes) return 'N/A';
+  const gb = bytes / (1024 * 1024 * 1024);
+  if (gb >= 1) return `${gb.toFixed(1)} GB`;
+  const mb = bytes / (1024 * 1024);
+  return `${mb.toFixed(0)} MB`;
 }
 
 function enrichCacheParams(streams) {
