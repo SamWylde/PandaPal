@@ -158,10 +158,10 @@ export async function saveTorrents(torrents) {
       fetched_at: now
     }));
 
-    // Upsert files (ignore duplicates)
+    // Upsert files (will use primary key: infoHash, title)
     const { error: fileError } = await supabase
       .from('file')
-      .upsert(fileRecords, { onConflict: 'infoHash,title', ignoreDuplicates: true });
+      .upsert(fileRecords, { ignoreDuplicates: true });
 
     if (fileError && !fileError.message?.includes('duplicate')) {
       console.error('Error saving files:', fileError);

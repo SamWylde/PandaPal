@@ -51,11 +51,11 @@ ALTER TABLE public.metas ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.changes ENABLE ROW LEVEL SECURITY;
 
 -- Create basic policies for access (adjust as needed)
-CREATE POLICY "Allow service_role full access" ON public.manifest FOR ALL USING (true);
-CREATE POLICY "Allow service_role full access" ON public.catalogs FOR ALL USING (true);
-CREATE POLICY "Allow service_role full access" ON public.tmdb_ids FOR ALL USING (true);
-CREATE POLICY "Allow service_role full access" ON public.metas FOR ALL USING (true);
-CREATE POLICY "Allow service_role full access" ON public.changes FOR ALL USING (true);
+CREATE POLICY "manifest_service_role_access" ON public.manifest FOR ALL USING (true);
+CREATE POLICY "catalogs_service_role_access" ON public.catalogs FOR ALL USING (true);
+CREATE POLICY "tmdb_ids_service_role_access" ON public.tmdb_ids FOR ALL USING (true);
+CREATE POLICY "metas_service_role_access" ON public.metas FOR ALL USING (true);
+CREATE POLICY "changes_service_role_access" ON public.changes FOR ALL USING (true);
 
 -- 6. torrentio_addon_cache table (for KeyvPostgres)
 CREATE TABLE IF NOT EXISTS public.torrentio_addon_cache (
@@ -66,7 +66,7 @@ CREATE TABLE IF NOT EXISTS public.torrentio_addon_cache (
 
 -- Enable RLS and create policy (optional)
 ALTER TABLE public.torrentio_addon_cache ENABLE ROW LEVEL SECURITY;
-CREATE POLICY "Allow service_role full access" ON public.torrentio_addon_cache FOR ALL USING (true);
+CREATE POLICY "torrentio_addon_cache_service_role_access" ON public.torrentio_addon_cache FOR ALL USING (true);
 
 -- 7. torrent table (for real-time scraper)
 CREATE TABLE IF NOT EXISTS public.torrent (
@@ -80,6 +80,19 @@ CREATE TABLE IF NOT EXISTS public.torrent (
   "resolution" VARCHAR(10),
   "fetched_at" TIMESTAMPTZ DEFAULT now()
 );
+
+-- Add fetched_at column if it doesn't exist (for existing tables)
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_schema = 'public'
+    AND table_name = 'torrent'
+    AND column_name = 'fetched_at'
+  ) THEN
+    ALTER TABLE public.torrent ADD COLUMN "fetched_at" TIMESTAMPTZ DEFAULT now();
+  END IF;
+END $$;
 
 -- 8. file table (for real-time scraper)
 CREATE TABLE IF NOT EXISTS public.file (
@@ -95,6 +108,19 @@ CREATE TABLE IF NOT EXISTS public.file (
   PRIMARY KEY ("infoHash", "title")
 );
 
+-- Add fetched_at column if it doesn't exist (for existing tables)
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_schema = 'public'
+    AND table_name = 'file'
+    AND column_name = 'fetched_at'
+  ) THEN
+    ALTER TABLE public.file ADD COLUMN "fetched_at" TIMESTAMPTZ DEFAULT now();
+  END IF;
+END $$;
+
 -- Create indexes for common queries
 CREATE INDEX IF NOT EXISTS idx_file_imdbId ON public.file("imdbId");
 CREATE INDEX IF NOT EXISTS idx_file_kitsuId ON public.file("kitsuId");
@@ -104,5 +130,5 @@ CREATE INDEX IF NOT EXISTS idx_torrent_fetched_at ON public.torrent("fetched_at"
 -- Enable RLS and create policies
 ALTER TABLE public.torrent ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.file ENABLE ROW LEVEL SECURITY;
-CREATE POLICY "Allow service_role full access" ON public.torrent FOR ALL USING (true);
-CREATE POLICY "Allow service_role full access" ON public.file FOR ALL USING (true);
+CREATE POLICY "torrent_service_role_access" ON public.torrent FOR ALL USING (true);
+CREATE POLICY "file_service_role_access" ON public.file FOR ALL USING (true);
