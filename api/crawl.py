@@ -15,11 +15,15 @@ app = FastAPI()
 @app.get("/api/crawl")
 async def crawl(request: Request):
     # Security check: Ensure this is triggered by Vercel Cron or someone with the right secret
-    auth_header = request.headers.get("Authorization")
     cron_secret = os.environ.get("CRON_SECRET")
+    auth_header = request.headers.get("Authorization")
     
-    if cron_secret and auth_header != f"Bearer {cron_secret}":
-        raise HTTPException(status_code=401, detail="Unauthorized")
+    if cron_secret:
+        if not auth_header or auth_header != f"Bearer {cron_secret}":
+            raise HTTPException(status_code=401, detail="Unauthorized")
+    else:
+        # Warning for logs, though for debugging it might be helpful to allow without secret
+        log.warning("::=>[Crawler] CRON_SECRET is not set. Anyone can trigger the crawl!")
 
     # Optional parameters for chunked crawling
     try:
