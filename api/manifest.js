@@ -47,6 +47,9 @@ export default async function (req, res) {
             if (res === 'catalog') {
                 return { name: 'catalog', types: ['movie', 'series', 'anime', 'other'], idPrefixes: ['tt', 'kitsu', 'brazuca', 'pandapal'] };
             }
+            if (res === 'meta') {
+                return { name: 'meta', types: ['movie', 'series', 'anime', 'other'], idPrefixes: ['tt', 'kitsu', 'cyberflix'] };
+            }
             return { name: res };
         }
         return res;

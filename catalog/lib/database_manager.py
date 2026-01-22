@@ -20,13 +20,31 @@ class DatabaseManager:
     def __init__(self):
         # Only initialize once
         if not DatabaseManager._initialized:
-            self.supabase = create_client(env.SUPABASE_URL, env.SUPABASE_KEY)
-
+            self.supabase = None
             try:
-                _ = self.supabase.rpc('manifest').execute()
-                log.info("Database connection successful")
+                if not env.SUPABASE_URL or not env.SUPABASE_KEY:
+                    raise ValueError("SUPABASE_URL or SUPABASE_KEY missing")
+                
+                self.supabase = create_client(env.SUPABASE_URL, env.SUPABASE_KEY)
+                try:
+                    _ = self.supabase.rpc('manifest').execute()
+                    log.info("Database connection successful")
+                except Exception as e:
+                    log.warning(f"Database health check failed: {str(e)}")
             except Exception as e:
-                log.warning(f"Database health check failed (this is normal on first run): {str(e)}")
+                log.error(f"CRITICAL: Failed to initialize Supabase client: {e}")
+                # Create a dummy object to prevent errors on attribute access
+                class DummySupabase:
+                    def table(self, *args, **kwargs): return self
+                    def select(self, *args, **kwargs): return self
+                    def rpc(self, *args, **kwargs): return self
+                    def execute(self, *args, **kwargs):
+                        class DummyResponse:
+                            def __init__(self):
+                                self.data = []
+                                self.count = 0
+                        return DummyResponse()
+                self.supabase = DummySupabase()
 
             # Load data with fail-safe defaults
             self.__cached_data = {
@@ -36,20 +54,21 @@ class DatabaseManager:
                 "metas": {},
             }
             
-            try:
-                self.__cached_data["manifest"] = self.get_manifest()
-            except Exception as e:
-                log.warning(f"Failed to load manifest: {e}")
-                
-            try:
-                self.__cached_data["catalogs"] = self.get_catalogs()
-            except Exception as e:
-                log.warning(f"Failed to load catalogs: {e}")
-                
-            try:
-                self.__cached_data["tmdb_ids"] = self.get_tmdb_ids()
-            except Exception as e:
-                log.warning(f"Failed to load tmdb_ids: {e}")
+            if not isinstance(self.supabase, (object,)) or hasattr(self.supabase, 'table'): # Simple check if dummy or real
+                try:
+                    self.__cached_data["manifest"] = self.get_manifest()
+                except Exception as e:
+                    log.warning(f"Failed to load manifest: {e}")
+                    
+                try:
+                    self.__cached_data["catalogs"] = self.get_catalogs()
+                except Exception as e:
+                    log.warning(f"Failed to load catalogs: {e}")
+                    
+                try:
+                    self.__cached_data["tmdb_ids"] = self.get_tmdb_ids()
+                except Exception as e:
+                    log.warning(f"Failed to load tmdb_ids: {e}")
                 
             DatabaseManager._initialized = True
 

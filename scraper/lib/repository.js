@@ -3,8 +3,15 @@ const Op = Sequelize.Op;
 
 const DATABASE_URI = process.env.DATABASE_URI;
 
-let database;
 if (DATABASE_URI) {
+  console.log('DATABASE_URI is set. Length:', DATABASE_URI.length);
+} else {
+  console.log('DATABASE_URI is NOT set. Scraper will run without database persistence.');
+}
+
+let database;
+// Ensure DATABASE_URI is a valid string and not pointing to localhost unless explicitly intended
+if (DATABASE_URI && DATABASE_URI.startsWith('postgres') && !DATABASE_URI.includes('127.0.0.1') && !DATABASE_URI.includes('localhost')) {
   database = new Sequelize(DATABASE_URI, {
     logging: false,
     pool: { max: 30, min: 5, idle: 20 * 60 * 1000 },
@@ -16,6 +23,9 @@ if (DATABASE_URI) {
     }
   });
 } else {
+  if (DATABASE_URI) {
+    console.warn('DATABASE_URI found but looks invalid or points to localhost. Skipping connection to avoid ECONNREFUSED.');
+  }
   database = {
     define: () => ({
       findOne: () => Promise.resolve(null),

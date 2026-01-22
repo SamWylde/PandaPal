@@ -2,19 +2,26 @@ import os
 import sys
 
 # Add the catalog directory to path to reach lib and other modules
-catalog_path = os.path.join(os.path.dirname(__file__), '..', 'catalog')
+current_dir = os.path.dirname(os.path.abspath(__file__))
+catalog_path = os.path.join(os.path.abspath(os.path.join(current_dir, '..')), 'catalog')
 sys.path.append(catalog_path)
+sys.path.append(current_dir) # Also add api dir just in case
 
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import JSONResponse, RedirectResponse
 from fastapi.middleware.gzip import GZipMiddleware
-from lib.web_worker import WebWorker
 
 # Disable background threads for serverless environment
 # We might need to modify WebWorker to not start threads if possible, 
 # or just ignore it since Vercel will kill the process anyway.
 
-worker = WebWorker(should_start_thread=False)
+worker = None
+try:
+    from lib.web_worker import WebWorker
+    worker = WebWorker(should_start_thread=False)
+except Exception as e:
+    print(f"CRITICAL ERROR: Failed to initialize WebWorker: {e}")
+
 app = FastAPI()
 app.add_middleware(GZipMiddleware, minimum_size=1000)
 
@@ -55,6 +62,9 @@ async def catalog_endpoint(
     if id is None:
         raise HTTPException(status_code=404, detail="Not found")
 
+    if worker is None:
+        return __json_response({"metas": [], "error": "Catalog service unavailable (missing credentials)"})
+
     metas = await worker.get_configured_catalog(id=id, extras=extras, config=configs)
     headers = add_cache_headers(CACHE_DURATIONS["MEDIUM"])
     return __json_response(metas, extra_headers=headers)
@@ -64,6 +74,10 @@ async def catalog_endpoint(
 async def meta_endpoint(type: str, id: str, configs: str | None = None):
     if id is None or type is None:
         raise HTTPException(status_code=404, detail="Not found")
+    
+    if worker is None:
+        return __json_response({"meta": {}, "error": "Meta service unavailable"})
+
     meta = worker.get_meta(id=id, s_type=type, config=configs)
     headers = add_cache_headers(CACHE_DURATIONS["VERY_LONG"])
     return __json_response(meta, extra_headers=headers)
@@ -72,6 +86,8 @@ async def meta_endpoint(type: str, id: str, configs: str | None = None):
 @app.get("/c/{configs}/catalog/manifest.json")
 async def manifest_endpoint(request: Request, configs: str | None = None):
     referer = str(request.base_url)
+    if worker is None:
+        return __json_response({"catalogs": [], "id": "pandapal.catalog", "name": "PandaPal Catalog (Unavailable)"})
     manifest = worker.get_configured_manifest(referer, configs)
     headers = add_cache_headers(CACHE_DURATIONS["SHORT"])
     return __json_response(manifest, extra_headers=headers)
