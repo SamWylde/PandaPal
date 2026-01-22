@@ -117,7 +117,116 @@ export const QualityFilter = {
   options: [
     {
       key: 'brremux',
-// ... unchanged ...
+      label: 'BluRay REMUX',
+      test(quality, bingeGroup) {
+        return bingeGroup?.includes(this.label);
+      }
+    },
+    {
+      key: 'hdrall',
+      label: 'HDR/HDR10+/Dolby Vision',
+      items: ['HDR', 'HDR10+', 'DV'],
+      test(quality) {
+        const hdrProfiles = quality?.split(' ')?.slice(1)?.join() || '';
+        return this.items.some(hdrType => hdrProfiles.includes(hdrType));
+      }
+    },
+    {
+      key: 'dolbyvision',
+      label: 'Dolby Vision',
+      test(quality) {
+        const hdrProfiles = quality?.split(' ')?.slice(1)?.join() || '';
+        return hdrProfiles === 'DV';
+      }
+    },
+    {
+      key: 'dolbyvisionwithhdr',
+      label: 'Dolby Vision + HDR',
+      test(quality) {
+        const hdrProfiles = quality?.split(' ')?.slice(1)?.join() || '';
+        return hdrProfiles.includes('DV') && hdrProfiles.includes('HDR');
+      }
+    },
+    {
+      key: 'threed',
+      label: '3D',
+      test(quality) {
+        const hdrProfiles = quality?.split(' ')?.slice(1)?.join() || '';
+        return hdrProfiles.includes('3D');
+      }
+    },
+    {
+      key: 'nonthreed',
+      label: 'Non 3D (DO NOT SELECT IF NOT SURE)',
+      test(quality) {
+        const hdrProfiles = quality?.split(' ')?.slice(1)?.join() || '';
+        return !hdrProfiles.includes('3D');
+      }
+    },
+    {
+      key: '4k',
+      label: '4k',
+      items: ['4k'],
+      test(quality) {
+        return quality && this.items.includes(quality.split(' ')[0]);
+      }
+    },
+    {
+      key: '1080p',
+      label: '1080p',
+      items: ['1080p'],
+      test(quality) {
+        return this.items.includes(quality)
+      }
+    },
+    {
+      key: '720p',
+      label: '720p',
+      items: ['720p'],
+      test(quality) {
+        return this.items.includes(quality)
+      }
+    },
+    {
+      key: '480p',
+      label: '480p',
+      items: ['480p'],
+      test(quality) {
+        return this.items.includes(quality)
+      }
+    },
+    {
+      key: 'other',
+      label: 'Other (DVDRip/HDRip/BDRip...)',
+      // could be ['DVDRip', 'HDRip', 'BDRip', 'BRRip', 'BluRay', 'WEB-DL', 'WEBRip', 'HDTV', 'DivX', 'XviD']
+      items: ['4k', '1080p', '720p', '480p', 'SCR', 'CAM', 'TeleSync', 'TeleCine'],
+      test(quality) {
+        return quality && !this.items.includes(quality.split(' ')[0]);
+      }
+    },
+    {
+      key: 'scr',
+      label: 'Screener',
+      items: ['SCR'],
+      test(quality) {
+        return this.items.includes(quality)
+      }
+    },
+    {
+      key: 'cam',
+      label: 'Cam',
+      items: ['CAM', 'TeleSync', 'TeleCine'],
+      test(quality) {
+        return this.items.includes(quality)
+      }
+    },
+    {
+      key: 'unknown',
+      label: 'Unknown',
+      test(quality) {
+        return !quality
+      }
+    }
   ]
 };
 export const ForceIncludeExcluded = {
