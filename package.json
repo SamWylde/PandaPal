@@ -10,6 +10,7 @@
     "@keyv/postgres": "^1.0.0",
     "@paradise-cloud/easy-debrid": "^3.0.0",
     "@putdotio/api-client": "^8.42.0",
+    "@supabase/supabase-js": "^2.91.0",
     "all-debrid-api": "^1.3.3",
     "axios": "^1.13.2",
     "cacheable": "^1.8.10",
