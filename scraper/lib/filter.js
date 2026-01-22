@@ -245,7 +245,16 @@ export default function applyFilters(streams, config) {
   ].reduce((filteredStreams, filter) => filter(filteredStreams, config), streams);
 }
 
-// ... unchanged ...
+function filterByProvider(streams, config) {
+  const providers = config[Providers.key];
+  if (!providers) {
+    return streams;
+  }
+  return streams.filter(stream => {
+    const provider = extractProvider(stream.name);
+    return providers.includes(provider);
+  });
+}
 
 function filterByQuality(streams, config) {
   const filters = config[QualityFilter.key];
