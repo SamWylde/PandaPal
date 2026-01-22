@@ -1,6 +1,7 @@
 import KeyvPostgres from "@keyv/postgres";
 import { KeyvCacheableMemory } from "cacheable";
 import { isStaticUrl } from '../moch/static.js';
+import { normalizePostgresUri } from './uriHelper.js';
 
 const GLOBAL_KEY_PREFIX = 'torrentio-addon';
 const STREAM_KEY_PREFIX = `${GLOBAL_KEY_PREFIX}|stream`;
@@ -24,8 +25,8 @@ try {
     if (DATABASE_URI.includes('127.0.0.1') || DATABASE_URI.includes('localhost')) {
       console.warn('Cache: DATABASE_URI points to localhost. Skipping remote cache to prevent ECONNREFUSED.');
     } else {
-      // KeyvPostgres sometimes (depending on version) prefers postgresql:// over postgres://
-      const normalizedUri = DATABASE_URI.replace(/^postgres:\/\//, 'postgresql://');
+      // Use helper to fix URI encoding (handles special chars in password)
+      const normalizedUri = normalizePostgresUri(DATABASE_URI);
 
       remoteCache = new KeyvPostgres(normalizedUri, {
         table: 'torrentio_addon_cache',

@@ -1,4 +1,5 @@
 import { Sequelize } from 'sequelize';
+import { normalizePostgresUri } from './uriHelper.js';
 const Op = Sequelize.Op;
 
 const DATABASE_URI = process.env.DATABASE_URI;
@@ -14,7 +15,8 @@ let database;
 // Ensure DATABASE_URI is a valid string and not pointing to localhost unless explicitly intended
 if (DATABASE_URI && DATABASE_URI.startsWith('postgres') && !DATABASE_URI.includes('127.0.0.1') && !DATABASE_URI.includes('localhost')) {
   console.log('Repository: Attempting to connect to remote PostgreSQL database...');
-  database = new Sequelize(DATABASE_URI, {
+  const connectionUri = normalizePostgresUri(DATABASE_URI);
+  database = new Sequelize(connectionUri, {
     logging: false,
     pool: { max: 30, min: 5, idle: 20 * 60 * 1000 },
     dialectOptions: {
