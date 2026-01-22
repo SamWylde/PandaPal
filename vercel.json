@@ -1,5 +1,8 @@
 {
     "version": 2,
+    "env": {
+        "NODE_OPTIONS": "--no-deprecation"
+    },
     "crons": [
         {
             "path": "/api/crawl",
