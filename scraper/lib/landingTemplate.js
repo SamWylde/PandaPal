@@ -432,6 +432,26 @@ export default function landingTemplate(manifest, config = {}) {
                       maxHeight: 400,
                       numberDisplayed: 1,
                       buttonTextAlignment: 'left',
+                      buttonText: function(options, select) {
+                        if (options.length === 0) {
+                            return 'None';
+                        }
+                        else if (options.length > 1) {
+                            return options.length + ' selected';
+                        }
+                        else {
+                             var labels = [];
+                             options.each(function() {
+                                 if ($(this).attr('label') !== undefined) {
+                                     labels.push($(this).attr('label'));
+                                 }
+                                 else {
+                                     labels.push($(this).html());
+                                 }
+                             });
+                             return labels.join(', ') + '';
+                        }
+                      },
                       onChange: () => generateInstallLink()
                   };
 
