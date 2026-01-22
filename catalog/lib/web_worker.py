@@ -198,7 +198,7 @@ class WebWorker:
         if config is not None:
             converted_configs = self.convert_config(config)
             if converted_configs is not None:
-                rpdb_key = converted_configs.get("rpgb", None)
+                rpdb_key = converted_configs.get("rpdb", None)
                 trakt_key = converted_configs.get("trakt", None)
                 lang_key = converted_configs.get("lang", None)
 

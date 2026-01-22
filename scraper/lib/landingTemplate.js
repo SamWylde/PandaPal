@@ -316,6 +316,14 @@ export default function landingTemplate(manifest, config = {}) {
             ${catalogsHTML}
          </select>
          
+         <label class="label" for="iRpdb">RPDB API Key (Optional):</label>
+         <div class="description-text">Enter your Rating Poster Database API Key for rated posters.</div>
+         <input type="text" id="iRpdb" onchange="generateInstallLink()" class="input" placeholder="Optional">
+
+         <label class="label" for="iTrakt">Trakt Client ID (Optional):</label>
+         <div class="description-text">Enter your Trakt Client ID to enable personalized recommendations (requires Trakt authentication later).</div>
+         <input type="text" id="iTrakt" onchange="generateInstallLink()" class="input" placeholder="Optional">
+         
          <label class="label" for="iProviders">Torrentio Providers:</label>
          <div class="description-text">Choose the torrent sites to scrape for streams.</div>
          <select id="iProviders" class="input" onchange="generateInstallLink()" name="providers[]" multiple="multiple">
@@ -533,12 +541,16 @@ export default function landingTemplate(manifest, config = {}) {
               const offcloud = offcloudValue.length && offcloudValue.trim();
               const torbox = torboxValue.length && torboxValue.trim();
               const putio = putioClientIdValue.length && putioTokenValue.length && putioClientIdValue.trim() + '@' + putioTokenValue.trim();
+              const rpdb = $('#iRpdb').val().trim();
+              const trakt = $('#iTrakt').val().trim();
 
               const preConfigurations = { 
                 ${preConfigurationObject}
               };
               let configurationValue = [
                     ['catalogs', catalogs],
+                    ['rpdb', rpdb],
+                    ['trakt', trakt],
                     ['${Providers.key}', providers],
                     ['${SortOptions.key}', sort],
                     ['${LanguageOptions.key}', languages],
