@@ -76,9 +76,9 @@ export const Providers = {
       foreign: '🇵🇹'
     },
     {
-        key: 'micoleaodublado',
-        label: 'MicoLeaoDublado',
-        foreign: '🇵🇹'
+      key: 'micoleaodublado',
+      label: 'MicoLeaoDublado',
+      foreign: '🇵🇹'
     },
     {
       key: 'torrent9',
@@ -117,117 +117,11 @@ export const QualityFilter = {
   options: [
     {
       key: 'brremux',
-      label: 'BluRay REMUX',
-      test(quality, bingeGroup) {
-        return bingeGroup?.includes(this.label);
-      }
-    },
-    {
-      key: 'hdrall',
-      label: 'HDR/HDR10+/Dolby Vision',
-      items: ['HDR', 'HDR10+', 'DV'],
-      test(quality) {
-        const hdrProfiles = quality?.split(' ')?.slice(1)?.join() || '';
-        return this.items.some(hdrType => hdrProfiles.includes(hdrType));
-      }
-    },
-    {
-      key: 'dolbyvision',
-      label: 'Dolby Vision',
-      test(quality) {
-        const hdrProfiles = quality?.split(' ')?.slice(1)?.join() || '';
-        return hdrProfiles === 'DV';
-      }
-    },
-    {
-      key: 'dolbyvisionwithhdr',
-      label: 'Dolby Vision + HDR',
-      test(quality) {
-        const hdrProfiles = quality?.split(' ')?.slice(1)?.join() || '';
-        return hdrProfiles.includes('DV') && hdrProfiles.includes('HDR');
-      }
-    },
-    {
-      key: 'threed',
-      label: '3D',
-      test(quality) {
-        const hdrProfiles = quality?.split(' ')?.slice(1)?.join() || '';
-        return hdrProfiles.includes('3D');
-      }
-    },
-    {
-      key: 'nonthreed',
-      label: 'Non 3D (DO NOT SELECT IF NOT SURE)',
-      test(quality) {
-        const hdrProfiles = quality?.split(' ')?.slice(1)?.join() || '';
-        return !hdrProfiles.includes('3D');
-      }
-    },
-    {
-      key: '4k',
-      label: '4k',
-      items: ['4k'],
-      test(quality) {
-        return quality && this.items.includes(quality.split(' ')[0]);
-      }
-    },
-    {
-      key: '1080p',
-      label: '1080p',
-      items: ['1080p'],
-      test(quality) {
-        return this.items.includes(quality)
-      }
-    },
-    {
-      key: '720p',
-      label: '720p',
-      items: ['720p'],
-      test(quality) {
-        return this.items.includes(quality)
-      }
-    },
-    {
-      key: '480p',
-      label: '480p',
-      items: ['480p'],
-      test(quality) {
-        return this.items.includes(quality)
-      }
-    },
-    {
-      key: 'other',
-      label: 'Other (DVDRip/HDRip/BDRip...)',
-      // could be ['DVDRip', 'HDRip', 'BDRip', 'BRRip', 'BluRay', 'WEB-DL', 'WEBRip', 'HDTV', 'DivX', 'XviD']
-      items: ['4k', '1080p', '720p', '480p', 'SCR', 'CAM', 'TeleSync', 'TeleCine'],
-      test(quality) {
-        return quality && !this.items.includes(quality.split(' ')[0]);
-      }
-    },
-    {
-      key: 'scr',
-      label: 'Screener',
-      items: ['SCR'],
-      test(quality) {
-        return this.items.includes(quality)
-      }
-    },
-    {
-      key: 'cam',
-      label: 'Cam',
-      items: ['CAM', 'TeleSync', 'TeleCine'],
-      test(quality) {
-        return this.items.includes(quality)
-      }
-    },
-    {
-      key: 'unknown',
-      label: 'Unknown',
-      test(quality) {
-        return !quality
-      }
-    }
+// ... unchanged ...
   ]
+};
+export const ForceIncludeExcluded = {
+  key: 'force_include_excluded'
 };
 export const SizeFilter = {
   key: 'sizefilter'
@@ -242,16 +136,7 @@ export default function applyFilters(streams, config) {
   ].reduce((filteredStreams, filter) => filter(filteredStreams, config), streams);
 }
 
-function filterByProvider(streams, config) {
-  const providers = config.providers || defaultProviderKeys;
-  if (!providers?.length) {
-    return streams;
-  }
-  return streams.filter(stream => {
-    const provider = extractProvider(stream.title).toLowerCase();
-    return providers.includes(provider);
-  })
-}
+// ... unchanged ...
 
 function filterByQuality(streams, config) {
   const filters = config[QualityFilter.key];
@@ -259,11 +144,17 @@ function filterByQuality(streams, config) {
     return streams;
   }
   const filterOptions = QualityFilter.options.filter(option => filters.includes(option.key));
-  return streams.filter(stream => {
+  const filtered = streams.filter(stream => {
     const streamQuality = stream.name.split('\n')[1];
     const bingeGroup = stream.behaviorHints?.bingeGroup;
     return !filterOptions.some(option => option.test(streamQuality, bingeGroup));
   });
+
+  // Fallback: if enabled and all streams are filtered out, return the original list
+  if (config[ForceIncludeExcluded.key] && filtered.length === 0 && streams.length > 0) {
+    return streams;
+  }
+  return filtered;
 }
 
 function filterBySize(streams, config) {

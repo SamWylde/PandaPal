@@ -1,5 +1,5 @@
 import { DebridOptions } from '../moch/options.js';
-import { QualityFilter, Providers, SizeFilter } from './filter.js';
+import { QualityFilter, Providers, SizeFilter, ForceIncludeExcluded } from './filter.js';
 import { LanguageOptions } from './languages.js';
 
 export const PreConfigurations = {

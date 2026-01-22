@@ -194,7 +194,7 @@ a.install-link {
   font-style: italic;
 }
 `;
-import { Providers, QualityFilter, SizeFilter } from './filter.js';
+import { Providers, QualityFilter, SizeFilter, ForceIncludeExcluded } from './filter.js';
 import { SortOptions } from './sort.js';
 import { LanguageOptions } from './languages.js';
 import { DebridOptions } from '../moch/options.js';
@@ -222,6 +222,7 @@ export default function landingTemplate(manifest, config = {}) {
    const sort = config[SortOptions.key] || SortOptions.options.qualitySeeders.key;
    const languages = config[LanguageOptions.key] || [];
    const qualityFilters = config[QualityFilter.key] || [];
+   const forceIncludeExcluded = config[ForceIncludeExcluded.key] === 'true';
    const sizeFilter = (config[SizeFilter.key] || []).join(',');
    const limit = config.limit || '';
    const catalogs = config.catalogs || cyberflixCatalogs.map(c => c.id); // Default to all catalogs selected
@@ -476,6 +477,7 @@ export default function landingTemplate(manifest, config = {}) {
                   $('#iSort').val("${sort}");
                   $('#iLimit').val("${limit}");
                   $('#iSizeFilter').val("${sizeFilter}");
+                  $('#iForceIncludeExcluded').prop('checked', ${forceIncludeExcluded});
                   
                   generateInstallLink();
                   debridProvidersChange();
@@ -512,6 +514,8 @@ export default function landingTemplate(manifest, config = {}) {
               const languagesValue = $('#iLanguages').val().join(',') || [];
               const limitValue = $('#iLimit').val() || '';
               const sizeFilterValue = $('#iSizeFilter').val() || '';
+              const forceIncludeExcludedValue = $('#iForceIncludeExcluded').prop('checked');
+
               
               const debridOptionsValue = $('#iDebridOptions').val().join(',') || '';
               const realDebridValue = $('#iRealDebrid').val() || '';
@@ -555,6 +559,7 @@ export default function landingTemplate(manifest, config = {}) {
                     ['${SortOptions.key}', sort],
                     ['${LanguageOptions.key}', languages],
                     ['${QualityFilter.key}', qualityFilters],
+                    ['${ForceIncludeExcluded.key}', forceIncludeExcludedValue],
                     ['limit', limit],
                     ['${SizeFilter.key}', sizeFilter],
                     ['${DebridOptions.key}', debridOptions], 
