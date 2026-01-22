@@ -428,60 +428,61 @@ export default function landingTemplate(manifest, config = {}) {
         <div class="separator"></div>
       </div>
       <script type="text/javascript">
-              const commonOptions = {
-                  nonSelectedText: 'None',
-                  buttonTextAlignment: 'left',
-                  onChange: () => generateInstallLink()
-              };
+              $(document).ready(function() {
+                  const commonOptions = {
+                      nonSelectedText: 'None',
+                      buttonTextAlignment: 'left',
+                      onChange: () => generateInstallLink()
+                  };
 
-              $('#iCatalogs').multiselect({ ...commonOptions, nonSelectedText: 'All catalogs' });
-              $('#iCatalogs').multiselect('select', [${catalogs.map(c => '"' + c + '"')}]);
+                  $('#iCatalogs').multiselect({ ...commonOptions, nonSelectedText: 'All catalogs' });
+                  $('#iCatalogs').multiselect('select', [${catalogs.map(c => '"' + c + '"')}]);
 
-              $('#iProviders').multiselect({ 
-                  nonSelectedText: 'All providers',
-                  buttonTextAlignment: 'left',
-                  onChange: () => generateInstallLink()
-              });
-              $('#iProviders').multiselect('select', [${providers.map(provider => '"' + provider + '"')}]);
+                  $('#iProviders').multiselect({ 
+                      nonSelectedText: 'All providers',
+                      buttonTextAlignment: 'left',
+                      onChange: () => generateInstallLink()
+                  });
+                  $('#iProviders').multiselect('select', [${providers.map(provider => '"' + provider + '"')}]);
 
-              $('#iLanguages').multiselect({ 
-                  nonSelectedText: 'None',
-                  buttonTextAlignment: 'left',
-                  onChange: () => generateInstallLink()
-              });
-              $('#iLanguages').multiselect('select', [${languages.map(language => '"' + language + '"')}]);
-              
-              $('#iQualityFilter').multiselect({ 
-                  nonSelectedText: 'None',
-                  buttonTextAlignment: 'left',
-                  onChange: () => generateInstallLink()
-              });
-              $('#iQualityFilter').multiselect('select', [${qualityFilters.map(filter => '"' + filter + '"')}]);
-              
-              $('#iDebridOptions').multiselect({ 
-                  nonSelectedText: 'None',
-                  buttonTextAlignment: 'left',
-                  onChange: () => generateInstallLink()
-              });
-              $('#iDebridOptions').multiselect('select', [${debridOptions.map(option => '"' + option + '"')}]);
+                  $('#iLanguages').multiselect({ 
+                      nonSelectedText: 'None',
+                      buttonTextAlignment: 'left',
+                      onChange: () => generateInstallLink()
+                  });
+                  $('#iLanguages').multiselect('select', [${languages.map(language => '"' + language + '"')}]);
+                  
+                  $('#iQualityFilter').multiselect({ 
+                      nonSelectedText: 'None',
+                      buttonTextAlignment: 'left',
+                      onChange: () => generateInstallLink()
+                  });
+                  $('#iQualityFilter').multiselect('select', [${qualityFilters.map(filter => '"' + filter + '"')}]);
+                  
+                  $('#iDebridOptions').multiselect({ 
+                      nonSelectedText: 'None',
+                      buttonTextAlignment: 'left',
+                      onChange: () => generateInstallLink()
+                  });
+                  $('#iDebridOptions').multiselect('select', [${debridOptions.map(option => '"' + option + '"')}]);
 
-              $('#iDebridProviders').val("${debridProvider || 'none'}");
-              $('#iRealDebrid').val("${realDebridApiKey}");
-              $('#iPremiumize').val("${premiumizeApiKey}");
-              $('#iAllDebrid').val("${allDebridApiKey}");
-              $('#iDebridLink').val("${debridLinkApiKey}");
-               $('#iEasyDebrid').val("${easyDebridApiKey}");
-              $('#iOffcloud').val("${offcloudApiKey}");
-              $('#iTorbox').val("${torboxApiKey}");
-              $('#iPutioClientId').val("${putioClientId}");
-              $('#iPutioToken').val("${putioToken}");
-              $('#iSort').val("${sort}");
-              $('#iLimit').val("${limit}");
-              $('#iSizeFilter').val("${sizeFilter}");
-              
-              generateInstallLink();
-              debridProvidersChange();
-          });
+                  $('#iDebridProviders').val("${debridProvider || 'none'}");
+                  $('#iRealDebrid').val("${realDebridApiKey}");
+                  $('#iPremiumize').val("${premiumizeApiKey}");
+                  $('#iAllDebrid').val("${allDebridApiKey}");
+                  $('#iDebridLink').val("${debridLinkApiKey}");
+                  $('#iEasyDebrid').val("${easyDebridApiKey}");
+                  $('#iOffcloud').val("${offcloudApiKey}");
+                  $('#iTorbox').val("${torboxApiKey}");
+                  $('#iPutioClientId').val("${putioClientId}");
+                  $('#iPutioToken').val("${putioToken}");
+                  $('#iSort').val("${sort}");
+                  $('#iLimit').val("${limit}");
+                  $('#iSizeFilter').val("${sizeFilter}");
+                  
+                  generateInstallLink();
+                  debridProvidersChange();
+              });
           
           function sortModeChange() {
             if (['${SortOptions.options.seeders.key}', '${SortOptions.options.size.key}'].includes($('#iSort').val())) {
