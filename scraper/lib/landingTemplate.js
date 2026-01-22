@@ -310,22 +310,11 @@ export default function landingTemplate(manifest, config = {}) {
 
          <div class="separator"></div>
 
-         <h3 class="gives">Capabilities:</h3>
-         <ul>
-            <li>Cyberflix Catalogs</li>
-            <li>Torrentio Streams</li>
-            ${stylizedTypes.map(t => `<li>${t}</li>`).join('')}
-         </ul>
-
-         <div class="separator"></div>
-         
-         <label class="label" for="iCatalogs">Cyberflix Catalogs:</label>
+         <label class="label" for="iCatalogs">Catalogs:</label>
          <div class="description-text">Select which catalogs to display in Stremio (e.g., Netflix, Trending).</div>
          <select id="iCatalogs" class="input" onchange="generateInstallLink()" name="catalogs[]" multiple="multiple">
             ${catalogsHTML}
          </select>
-
-         <div class="separator"></div>
          
          <label class="label" for="iProviders">Torrentio Providers:</label>
          <div class="description-text">Choose the torrent sites to scrape for streams.</div>
