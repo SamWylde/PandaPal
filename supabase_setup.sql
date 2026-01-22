@@ -81,6 +81,19 @@ CREATE TABLE IF NOT EXISTS public.torrent (
   "fetched_at" TIMESTAMPTZ DEFAULT now()
 );
 
+-- Add fetched_at column if it doesn't exist (for existing tables)
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_schema = 'public'
+    AND table_name = 'torrent'
+    AND column_name = 'fetched_at'
+  ) THEN
+    ALTER TABLE public.torrent ADD COLUMN "fetched_at" TIMESTAMPTZ DEFAULT now();
+  END IF;
+END $$;
+
 -- 8. file table (for real-time scraper)
 CREATE TABLE IF NOT EXISTS public.file (
   "infoHash" VARCHAR(40),
@@ -94,6 +107,19 @@ CREATE TABLE IF NOT EXISTS public.file (
   "fetched_at" TIMESTAMPTZ DEFAULT now(),
   PRIMARY KEY ("infoHash", "title")
 );
+
+-- Add fetched_at column if it doesn't exist (for existing tables)
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_schema = 'public'
+    AND table_name = 'file'
+    AND column_name = 'fetched_at'
+  ) THEN
+    ALTER TABLE public.file ADD COLUMN "fetched_at" TIMESTAMPTZ DEFAULT now();
+  END IF;
+END $$;
 
 -- Create indexes for common queries
 CREATE INDEX IF NOT EXISTS idx_file_imdbId ON public.file("imdbId");
