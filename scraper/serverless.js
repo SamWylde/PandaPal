@@ -13,20 +13,38 @@ import landingTemplate from './lib/landingTemplate.js';
 import * as moch from './moch/moch.js';
 
 const router = new Router();
-const client = createClient({
-  url: process.env.REDIS_URL,
-})
-await client.connect()
-const limiter = rateLimit({
-  windowMs: 24 * 60 * 60 * 1000, // 1 day
-  limit: 5000,
-  legacyHeaders: false,
-  passOnStoreError: true,
-  keyGenerator: (req) => requestIp.getClientIp(req),
-  store: new RedisStore({
-    sendCommand: (...args) => client.sendCommand(args),
-  }),
-})
+
+// Optional Redis client for rate limiting
+let client;
+let limiter = (req, res, next) => next();
+
+if (process.env.REDIS_URL) {
+  try {
+    client = createClient({
+      url: process.env.REDIS_URL,
+      socket: {
+        connectTimeout: 5000
+      }
+    });
+    client.on('error', (err) => console.error('Redis Client Error', err));
+    await client.connect();
+    limiter = rateLimit({
+      windowMs: 24 * 60 * 60 * 1000, // 1 day
+      limit: 5000,
+      legacyHeaders: false,
+      passOnStoreError: true,
+      keyGenerator: (req) => requestIp.getClientIp(req),
+      store: new RedisStore({
+        sendCommand: (...args) => client.sendCommand(args),
+      }),
+    });
+    console.log('Redis connected, rate limiting enabled');
+  } catch (err) {
+    console.error('Failed to connect to Redis, rate limiting disabled:', err.message);
+  }
+} else {
+  console.log('REDIS_URL not set, rate limiting disabled');
+}
 
 router.use(cors())
 router.get('/', (_, res) => {
@@ -67,34 +85,34 @@ router.get('{/:configuration}/:resource/:type/:id{/:extra}.json', limiter, (req,
   const host = `${req.protocol}://${req.headers.host}`;
   const configValues = { ...extra, ...parseConfiguration(configuration), id, type, ip, host };
   addonInterface.get(resource, type, id, configValues)
-      .then(resp => {
-        const cacheHeaders = {
-          cacheMaxAge: 'max-age',
-          staleRevalidate: 'stale-while-revalidate',
-          staleError: 'stale-if-error'
-        };
-        const cacheControl = Object.keys(cacheHeaders)
-            .map(prop => Number.isInteger(resp[prop]) && cacheHeaders[prop] + '=' + resp[prop])
-            .filter(val => !!val).join(', ');
+    .then(resp => {
+      const cacheHeaders = {
+        cacheMaxAge: 'max-age',
+        staleRevalidate: 'stale-while-revalidate',
+        staleError: 'stale-if-error'
+      };
+      const cacheControl = Object.keys(cacheHeaders)
+        .map(prop => Number.isInteger(resp[prop]) && cacheHeaders[prop] + '=' + resp[prop])
+        .filter(val => !!val).join(', ');
 
-        res.setHeader('Cache-Control', `${cacheControl}, public`);
-        res.setHeader('Content-Type', 'application/json; charset=utf-8');
-        res.end(JSON.stringify(resp));
-      })
-      .catch(err => {
-        if (err.noHandler) {
-          if (next) {
-            next()
-          } else {
-            res.writeHead(404);
-            res.end(JSON.stringify({ err: 'not found' }));
-          }
+      res.setHeader('Cache-Control', `${cacheControl}, public`);
+      res.setHeader('Content-Type', 'application/json; charset=utf-8');
+      res.end(JSON.stringify(resp));
+    })
+    .catch(err => {
+      if (err.noHandler) {
+        if (next) {
+          next()
         } else {
-          console.error(err);
-          res.writeHead(500);
-          res.end(JSON.stringify({ err: 'handler error' }));
+          res.writeHead(404);
+          res.end(JSON.stringify({ err: 'not found' }));
         }
-      });
+      } else {
+        console.error(err);
+        res.writeHead(500);
+        res.end(JSON.stringify({ err: 'handler error' }));
+      }
+    });
 });
 
 router.get('/resolve/:moch/:apiKey/:infoHash/:cachedEntryInfo/:fileIndex{/:filename}', (req, res) => {
@@ -110,15 +128,15 @@ router.get('/resolve/:moch/:apiKey/:infoHash/:cachedEntryInfo/:fileIndex{/:filen
     isBrowser: !userAgent.includes('Stremio') && !!userAgentParser(userAgent).browser.name
   }
   moch.resolve(parameters)
-      .then(url => {
-        res.writeHead(302, { Location: url });
-        res.end();
-      })
-      .catch(error => {
-        console.log(error);
-        res.statusCode = 404;
-        res.end();
-      });
+    .then(url => {
+      res.writeHead(302, { Location: url });
+      res.end();
+    })
+    .catch(error => {
+      console.log(error);
+      res.statusCode = 404;
+      res.end();
+    });
 });
 
 export default function (req, res) {

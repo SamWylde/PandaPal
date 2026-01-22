@@ -95,7 +95,6 @@
      */
     function handleDebridProviderChange() {
         const provider = elements.debridProviders.val();
-        const moch = CONFIG.mochOptions || {};
 
         // Hide all debrid sections first
         $('.debrid-section').removeClass('is-visible');
@@ -103,11 +102,8 @@
         // Show/hide debrid options (visible when any provider selected)
         if (provider && provider !== 'none') {
             elements.debridOptionsSection.addClass('is-visible');
-        }
-
-        // Show the relevant API key section
-        if (provider && moch[provider]) {
-            $('#d' + capitalizeFirst(provider)).addClass('is-visible');
+            // Show the relevant API key section using lowercase ID
+            $('#d' + provider).addClass('is-visible');
         }
 
         generateInstallLink();
@@ -337,7 +333,7 @@
     function cacheElements() {
         elements.installLink = $('#installLink');
         elements.debridProviders = $('#iDebridProviders');
-        elements.debridOptionsSection = $('#dDebridOptions');
+        elements.debridOptionsSection = $('#ddebridoptions');
         elements.sort = $('#iSort');
         elements.limitLabel = $('#iLimitLabel');
     }
