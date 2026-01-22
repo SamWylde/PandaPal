@@ -23,7 +23,15 @@ class DatabaseManager:
             self.supabase = None
             try:
                 if not env.SUPABASE_URL or not env.SUPABASE_KEY:
+                    log.error("SUPABASE_URL or SUPABASE_KEY missing in environment variables.")
                     raise ValueError("SUPABASE_URL or SUPABASE_KEY missing")
+                
+                # Debug logging for credentials
+                url_len = len(env.SUPABASE_URL)
+                key_len = len(env.SUPABASE_KEY)
+                url_preview = f"{env.SUPABASE_URL[:8]}...{env.SUPABASE_URL[-5:]}" if url_len > 13 else "SHORT_URL"
+                key_preview = f"{env.SUPABASE_KEY[:5]}...{env.SUPABASE_KEY[-5:]}" if key_len > 10 else "SHORT_KEY"
+                log.info(f"Initializing Supabase: URL({url_len})={url_preview}, KEY({key_len})={key_preview}")
                 
                 self.supabase = create_client(env.SUPABASE_URL, env.SUPABASE_KEY)
                 try:
