@@ -279,13 +279,24 @@ export default function landingTemplate(manifest, config = {}) {
       <title>${manifest.name} - Stremio Addon</title>
       <link rel="shortcut icon" href="${logo}" type="image/x-icon">
       <link href="https://fonts.googleapis.com/css?family=Open+Sans:400,600,700&display=swap" rel="stylesheet">
-      <script src="https://code.jquery.com/jquery-3.6.4.slim.min.js"></script>
+      <script src="https://code.jquery.com/jquery-3.6.4.min.js"></script>
       <script src="https://cdn.jsdelivr.net/npm/popper.js@1.16.1/dist/umd/popper.min.js"></script>
       <script src="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/js/bootstrap.min.js"></script>
       <link href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css" rel="stylesheet" >
-      <script src="https://cdnjs.cloudflare.com/ajax/libs/bootstrap-multiselect/1.1.2/js/bootstrap-multiselect.min.js"></script>
-      <link href="https://cdnjs.cloudflare.com/ajax/libs/bootstrap-multiselect/1.1.2/css/bootstrap-multiselect.css" rel="stylesheet"/>
-      <style>${STYLESHEET}</style>
+      <script src="https://cdnjs.cloudflare.com/ajax/libs/bootstrap-multiselect/0.9.15/js/bootstrap-multiselect.min.js"></script>
+      <link href="https://cdnjs.cloudflare.com/ajax/libs/bootstrap-multiselect/0.9.15/css/bootstrap-multiselect.css" rel="stylesheet"/>
+      <style>
+         ${STYLESHEET}
+         .description-text {
+            margin-bottom: 10px; /* Consistent spacing */
+         }
+         .input, .btn-group {
+            margin-bottom: 20px; /* Consistent spacing between inputs */
+         }
+         .label {
+            margin-top: 20px;
+         }
+      </style>
    </head>
 
 	<body>
