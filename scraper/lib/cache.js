@@ -1,6 +1,6 @@
-import KeyvMongo from "@keyv/mongo";
+import KeyvPostgres from "@keyv/postgres";
 import { KeyvCacheableMemory } from "cacheable";
-import { isStaticUrl }  from '../moch/static.js';
+import { isStaticUrl } from '../moch/static.js';
 
 const GLOBAL_KEY_PREFIX = 'torrentio-addon';
 const STREAM_KEY_PREFIX = `${GLOBAL_KEY_PREFIX}|stream`;
@@ -10,18 +10,19 @@ const RESOLVED_URL_KEY_PREFIX = `${GLOBAL_KEY_PREFIX}|resolved`;
 const STREAM_TTL = 24 * 60 * 60 * 1000; // 24 hours
 const STREAM_EMPTY_TTL = 60 * 1000; // 1 minute
 const RESOLVED_URL_TTL = 3 * 60 * 60 * 1000; // 3 hours
-const AVAILABILITY_TTL =  5 * 24 * 60 * 60 * 1000; // 5 days
+const AVAILABILITY_TTL = 5 * 24 * 60 * 60 * 1000; // 5 days
 const MESSAGE_VIDEO_URL_TTL = 60 * 1000; // 1 minutes
 // When the streams are empty we want to cache it for less time in case of timeouts or failures
 
-const MONGO_URI = process.env.MONGODB_URI;
+const DATABASE_URI = process.env.DATABASE_URI;
 
 const memoryCache = new KeyvCacheableMemory({ ttl: MESSAGE_VIDEO_URL_TTL, lruSize: Infinity });
-const remoteCache = MONGO_URI && new KeyvMongo(MONGO_URI, {
-  collection: 'torrentio_addon_collection',
-  minPoolSize: 50,
-  maxPoolSize: 200,
-  maxConnecting: 5,
+const remoteCache = DATABASE_URI && new KeyvPostgres(DATABASE_URI, {
+  table: 'torrentio_addon_cache',
+  ssl: {
+    require: true,
+    rejectUnauthorized: false
+  }
 });
 
 async function cacheWrap(cache, key, method, ttl) {
@@ -53,71 +54,71 @@ export function cacheAvailabilityResults(infoHash, fileIds) {
   const fileIdsString = fileIds.toString();
   const containsFileIds = (array) => array.some(ids => ids.toString() === fileIdsString)
   return remoteCache.get(key)
-      .then(result => {
-        const newResult = result || [];
-        if (!containsFileIds(newResult)) {
-          newResult.push(fileIds);
-          newResult.sort((a, b) => b.length - a.length);
-        }
-        return remoteCache.set(key, newResult, AVAILABILITY_TTL);
-      });
+    .then(result => {
+      const newResult = result || [];
+      if (!containsFileIds(newResult)) {
+        newResult.push(fileIds);
+        newResult.sort((a, b) => b.length - a.length);
+      }
+      return remoteCache.set(key, newResult, AVAILABILITY_TTL);
+    });
 }
 
 export function removeAvailabilityResults(infoHash, fileIds) {
   const key = `${AVAILABILITY_KEY_PREFIX}:${infoHash}`;
   const fileIdsString = fileIds.toString();
   return remoteCache.get(key)
-      .then(result => {
-        const storedIndex = result?.findIndex(ids => ids.toString() === fileIdsString);
-        if (storedIndex >= 0) {
-          result.splice(storedIndex, 1);
-          return remoteCache.set(key, result, AVAILABILITY_TTL);
-        }
-      });
+    .then(result => {
+      const storedIndex = result?.findIndex(ids => ids.toString() === fileIdsString);
+      if (storedIndex >= 0) {
+        result.splice(storedIndex, 1);
+        return remoteCache.set(key, result, AVAILABILITY_TTL);
+      }
+    });
 }
 
 export function getCachedAvailabilityResults(infoHashes) {
   const keys = infoHashes.map(infoHash => `${AVAILABILITY_KEY_PREFIX}:${infoHash}`)
   return remoteCache.getMany(keys)
-      .then(result => {
-        const availabilityResults = {};
-        infoHashes.forEach((infoHash, index) => {
-          if (result[index]) {
-            availabilityResults[infoHash] = result[index];
-          }
-        });
-        return availabilityResults;
-      })
-      .catch(error => {
-        console.log('Failed retrieve availability cache', error)
-        return {};
+    .then(result => {
+      const availabilityResults = {};
+      infoHashes.forEach((infoHash, index) => {
+        if (result[index]) {
+          availabilityResults[infoHash] = result[index];
+        }
       });
+      return availabilityResults;
+    })
+    .catch(error => {
+      console.log('Failed retrieve availability cache', error)
+      return {};
+    });
 }
 
 export function cacheMochAvailabilityResult(moch, infoHash, result = { cached: true }) {
-    const key = `${AVAILABILITY_KEY_PREFIX}:${moch}:${infoHash}`;
-    return remoteCache.set(key, result, AVAILABILITY_TTL);
+  const key = `${AVAILABILITY_KEY_PREFIX}:${moch}:${infoHash}`;
+  return remoteCache.set(key, result, AVAILABILITY_TTL);
 }
 
 export function removeMochAvailabilityResult(moch, infoHash) {
-    const key = `${AVAILABILITY_KEY_PREFIX}:${moch}:${infoHash}`;
-    return remoteCache.delete(key);
+  const key = `${AVAILABILITY_KEY_PREFIX}:${moch}:${infoHash}`;
+  return remoteCache.delete(key);
 }
 
 export function getMochCachedAvailabilityResults(moch, infoHashes) {
-    const keys = infoHashes.map(infoHash => `${AVAILABILITY_KEY_PREFIX}:${moch}:${infoHash}`)
-    return remoteCache.getMany(keys)
-        .then(result => {
-            const availabilityResults = {};
-            infoHashes.forEach((infoHash, index) => {
-                if (result[index]) {
-                    availabilityResults[infoHash] = result[index];
-                }
-            });
-            return availabilityResults;
-        })
-        .catch(error => {
-            console.log('Failed retrieve availability cache', error)
-            return {};
-        });
+  const keys = infoHashes.map(infoHash => `${AVAILABILITY_KEY_PREFIX}:${moch}:${infoHash}`)
+  return remoteCache.getMany(keys)
+    .then(result => {
+      const availabilityResults = {};
+      infoHashes.forEach((infoHash, index) => {
+        if (result[index]) {
+          availabilityResults[infoHash] = result[index];
+        }
+      });
+      return availabilityResults;
+    })
+    .catch(error => {
+      console.log('Failed retrieve availability cache', error)
+      return {};
+    });
 }

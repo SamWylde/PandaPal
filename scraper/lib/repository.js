@@ -5,7 +5,16 @@ const DATABASE_URI = process.env.DATABASE_URI;
 
 let database;
 if (DATABASE_URI) {
-  database = new Sequelize(DATABASE_URI, { logging: false, pool: { max: 30, min: 5, idle: 20 * 60 * 1000 } });
+  database = new Sequelize(DATABASE_URI, {
+    logging: false,
+    pool: { max: 30, min: 5, idle: 20 * 60 * 1000 },
+    dialectOptions: {
+      ssl: {
+        require: true,
+        rejectUnauthorized: false
+      }
+    }
+  });
 } else {
   database = {
     define: () => ({

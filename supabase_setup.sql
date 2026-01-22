@@ -56,3 +56,14 @@ CREATE POLICY "Allow service_role full access" ON public.catalogs FOR ALL USING 
 CREATE POLICY "Allow service_role full access" ON public.tmdb_ids FOR ALL USING (true);
 CREATE POLICY "Allow service_role full access" ON public.metas FOR ALL USING (true);
 CREATE POLICY "Allow service_role full access" ON public.changes FOR ALL USING (true);
+
+-- 6. torrentio_addon_cache table (for KeyvPostgres)
+CREATE TABLE IF NOT EXISTS public.torrentio_addon_cache (
+  "key" VARCHAR(255) PRIMARY KEY,
+  "value" TEXT NOT NULL,
+  "expires" BIGINT
+);
+
+-- Enable RLS and create policy (optional)
+ALTER TABLE public.torrentio_addon_cache ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Allow service_role full access" ON public.torrentio_addon_cache FOR ALL USING (true);
