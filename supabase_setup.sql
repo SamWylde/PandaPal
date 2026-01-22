@@ -67,3 +67,42 @@ CREATE TABLE IF NOT EXISTS public.torrentio_addon_cache (
 -- Enable RLS and create policy (optional)
 ALTER TABLE public.torrentio_addon_cache ENABLE ROW LEVEL SECURITY;
 CREATE POLICY "Allow service_role full access" ON public.torrentio_addon_cache FOR ALL USING (true);
+
+-- 7. torrent table (for real-time scraper)
+CREATE TABLE IF NOT EXISTS public.torrent (
+  "infoHash" VARCHAR(40) PRIMARY KEY,
+  "provider" VARCHAR(50),
+  "title" TEXT,
+  "size" BIGINT,
+  "type" VARCHAR(20),
+  "uploadDate" TIMESTAMPTZ,
+  "seeders" INTEGER,
+  "resolution" VARCHAR(10),
+  "fetched_at" TIMESTAMPTZ DEFAULT now()
+);
+
+-- 8. file table (for real-time scraper)
+CREATE TABLE IF NOT EXISTS public.file (
+  "infoHash" VARCHAR(40),
+  "title" TEXT,
+  "size" BIGINT,
+  "imdbId" VARCHAR(20),
+  "imdbSeason" INTEGER,
+  "imdbEpisode" INTEGER,
+  "kitsuId" VARCHAR(20),
+  "kitsuEpisode" INTEGER,
+  "fetched_at" TIMESTAMPTZ DEFAULT now(),
+  PRIMARY KEY ("infoHash", "title")
+);
+
+-- Create indexes for common queries
+CREATE INDEX IF NOT EXISTS idx_file_imdbId ON public.file("imdbId");
+CREATE INDEX IF NOT EXISTS idx_file_kitsuId ON public.file("kitsuId");
+CREATE INDEX IF NOT EXISTS idx_file_fetched_at ON public.file("fetched_at");
+CREATE INDEX IF NOT EXISTS idx_torrent_fetched_at ON public.torrent("fetched_at");
+
+-- Enable RLS and create policies
+ALTER TABLE public.torrent ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.file ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Allow service_role full access" ON public.torrent FOR ALL USING (true);
+CREATE POLICY "Allow service_role full access" ON public.file FOR ALL USING (true);

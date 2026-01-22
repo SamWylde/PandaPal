@@ -1,7 +1,26 @@
 import axios from 'axios';
 import * as cheerio from 'cheerio';
 
-const TG_BASE = 'https://torrentgalaxy.to';
+// Fallback domains for TorrentGalaxy
+const TG_DOMAINS = [
+    'https://torrentgalaxy.to',
+    'https://torrentgalaxy.mx',
+    'https://tgx.rs'
+];
+
+/**
+ * Retry helper with exponential backoff
+ */
+async function retryWithBackoff(fn, retries = 2, delay = 1000) {
+    for (let i = 0; i <= retries; i++) {
+        try {
+            return await fn();
+        } catch (error) {
+            if (i === retries) throw error;
+            await new Promise(resolve => setTimeout(resolve, delay * Math.pow(2, i)));
+        }
+    }
+}
 
 /**
  * Search TorrentGalaxy for torrents by IMDB ID or title
@@ -10,56 +29,64 @@ const TG_BASE = 'https://torrentgalaxy.to';
  * @returns {Promise<Array>} Array of torrent objects
  */
 export async function searchTorrentGalaxy(imdbId, type) {
-    try {
-        const searchUrl = `${TG_BASE}/torrents.php?search=${encodeURIComponent(imdbId)}`;
+    // Try each domain with retry logic
+    for (const baseUrl of TG_DOMAINS) {
+        try {
+            const searchUrl = `${baseUrl}/torrents.php?search=${encodeURIComponent(imdbId)}`;
 
-        const response = await axios.get(searchUrl, {
-            timeout: 10000,
-            headers: {
-                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
-            }
-        });
+            const response = await retryWithBackoff(() =>
+                axios.get(searchUrl, {
+                    timeout: 10000,
+                    headers: {
+                        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+                    }
+                })
+            );
 
-        const $ = cheerio.load(response.data);
-        const torrents = [];
+            const $ = cheerio.load(response.data);
+            const torrents = [];
 
-        $('div.tgxtablerow').slice(0, 15).each((i, el) => {
-            const titleEl = $(el).find('a.txlight');
-            const title = titleEl.text().trim();
+            $('div.tgxtablerow').slice(0, 15).each((i, el) => {
+                const titleEl = $(el).find('a.txlight');
+                const title = titleEl.text().trim();
 
-            // Get magnet link directly from the page
-            const magnetEl = $(el).find('a[href^="magnet:"]');
-            const magnetUrl = magnetEl.attr('href');
+                // Get magnet link directly from the page
+                const magnetEl = $(el).find('a[href^="magnet:"]');
+                const magnetUrl = magnetEl.attr('href');
 
-            const seeders = parseInt($(el).find('span[title="Seeders/Leechers"] b').first().text()) || 0;
-            const sizeEl = $(el).find('span.badge-secondary').first();
-            const size = sizeEl.text().trim();
+                const seeders = parseInt($(el).find('span[title="Seeders/Leechers"] b').first().text()) || 0;
+                const sizeEl = $(el).find('span.badge-secondary').first();
+                const size = sizeEl.text().trim();
 
-            if (title && magnetUrl) {
-                const hashMatch = magnetUrl.match(/btih:([a-fA-F0-9]+)/i);
-                if (hashMatch) {
-                    torrents.push({
-                        infoHash: hashMatch[1].toLowerCase(),
-                        provider: 'torrentgalaxy',
-                        title: title,
-                        size: parseSize(size),
-                        type: type,
-                        uploadDate: new Date(),
-                        seeders: seeders,
-                        resolution: extractResolution(title),
-                        imdbId: imdbId,
-                        magnetUrl: magnetUrl
-                    });
+                if (title && magnetUrl) {
+                    const hashMatch = magnetUrl.match(/btih:([a-fA-F0-9]+)/i);
+                    if (hashMatch) {
+                        torrents.push({
+                            infoHash: hashMatch[1].toLowerCase(),
+                            provider: 'torrentgalaxy',
+                            title: title,
+                            size: parseSize(size),
+                            type: type,
+                            uploadDate: new Date(),
+                            seeders: seeders,
+                            resolution: extractResolution(title),
+                            imdbId: imdbId,
+                            magnetUrl: magnetUrl
+                        });
+                    }
                 }
-            }
-        });
+            });
 
-        console.log(`TorrentGalaxy: Found ${torrents.length} torrents for ${imdbId}`);
-        return torrents;
-    } catch (error) {
-        console.error(`TorrentGalaxy search failed for ${imdbId}:`, error.message);
-        return [];
+            console.log(`TorrentGalaxy: Found ${torrents.length} torrents for ${imdbId}`);
+            return torrents;
+        } catch (error) {
+            console.log(`TorrentGalaxy (${baseUrl}): Failed, trying next domain...`);
+            continue;
+        }
     }
+
+    console.error(`TorrentGalaxy search failed for ${imdbId}: All domains exhausted`);
+    return [];
 }
 
 function parseSize(sizeStr) {
