@@ -1,0 +1,504 @@
+/**
+ * PandaPal Configuration Page Styles
+ * 
+ * Design System with CSS Custom Properties for maintainability.
+ * Mobile-first responsive design.
+ */
+
+/* ==========================================================================
+   1. Design Tokens (CSS Custom Properties)
+   ========================================================================== */
+
+:root {
+  /* Colors - Primary */
+  --color-primary: #8A5AAB;
+  --color-primary-hover: #7a4a9b;
+  --color-primary-active: #6a3a8b;
+  
+  /* Colors - Background */
+  --color-bg-page: #111111;
+  --color-bg-card: #f5f5f5;
+  --color-bg-input: #ffffff;
+  --color-bg-input-focus: #ffffff;
+  
+  /* Colors - Text */
+  --color-text-primary: #333333;
+  --color-text-secondary: #555555;
+  --color-text-muted: #666666;
+  --color-text-inverse: #ffffff;
+  --color-text-link: var(--color-primary);
+  
+  /* Colors - Borders & Dividers */
+  --color-border: rgba(0, 0, 0, 0.12);
+  --color-border-focus: var(--color-primary);
+  --color-divider: rgba(0, 0, 0, 0.08);
+  
+  /* Spacing Scale */
+  --space-2xs: 0.25rem;   /* 4px */
+  --space-xs: 0.5rem;     /* 8px */
+  --space-sm: 0.75rem;    /* 12px */
+  --space-md: 1rem;       /* 16px */
+  --space-lg: 1.5rem;     /* 24px */
+  --space-xl: 2rem;       /* 32px */
+  --space-2xl: 3rem;      /* 48px */
+  
+  /* Typography */
+  --font-family: 'Open Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  --font-size-xs: 0.75rem;    /* 12px */
+  --font-size-sm: 0.875rem;   /* 14px */
+  --font-size-md: 1rem;       /* 16px */
+  --font-size-lg: 1.125rem;   /* 18px */
+  --font-size-xl: 1.5rem;     /* 24px */
+  --font-size-2xl: 2rem;      /* 32px */
+  --font-weight-normal: 400;
+  --font-weight-medium: 500;
+  --font-weight-semibold: 600;
+  --font-weight-bold: 700;
+  --line-height-tight: 1.25;
+  --line-height-normal: 1.5;
+  --line-height-relaxed: 1.75;
+  
+  /* Borders & Radius */
+  --radius-sm: 4px;
+  --radius-md: 8px;
+  --radius-lg: 12px;
+  --radius-full: 9999px;
+  
+  /* Shadows */
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.05);
+  --shadow-md: 0 4px 6px rgba(0, 0, 0, 0.07), 0 2px 4px rgba(0, 0, 0, 0.06);
+  --shadow-lg: 0 10px 15px rgba(0, 0, 0, 0.1), 0 4px 6px rgba(0, 0, 0, 0.05);
+  --shadow-focus: 0 0 0 3px rgba(138, 90, 171, 0.25);
+  
+  /* Transitions */
+  --transition-fast: 150ms ease;
+  --transition-normal: 250ms ease;
+  --transition-slow: 350ms ease;
+  
+  /* Container */
+  --container-max-width: 600px;
+  --container-padding: var(--space-md);
+}
+
+
+/* ==========================================================================
+   2. Reset & Base Styles
+   ========================================================================== */
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html {
+  font-size: 16px;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+body {
+  margin: 0;
+  padding: 0;
+  min-height: 100vh;
+  font-family: var(--font-family);
+  font-size: var(--font-size-md);
+  line-height: var(--line-height-normal);
+  color: var(--color-text-primary);
+  background-color: var(--color-bg-page);
+}
+
+
+/* ==========================================================================
+   3. Layout Components
+   ========================================================================== */
+
+/* Main Container */
+.config-container {
+  width: 100%;
+  max-width: var(--container-max-width);
+  margin: 0 auto;
+  padding: var(--space-lg) var(--container-padding);
+  background-color: var(--color-bg-card);
+  min-height: 100vh;
+}
+
+@media (min-width: 640px) {
+  .config-container {
+    min-height: auto;
+    margin: var(--space-xl) auto;
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-lg);
+  }
+}
+
+/* Header */
+.config-header {
+  text-align: center;
+  margin-bottom: var(--space-xl);
+}
+
+.config-logo {
+  width: 80px;
+  height: 80px;
+  margin: 0 auto var(--space-md);
+  border-radius: var(--radius-full);
+  overflow: hidden;
+  box-shadow: var(--shadow-md);
+}
+
+.config-logo img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.config-title {
+  margin: 0 0 var(--space-2xs);
+  font-size: var(--font-size-xl);
+  font-weight: var(--font-weight-bold);
+  color: var(--color-text-primary);
+}
+
+.config-version {
+  display: inline-block;
+  margin-left: var(--space-xs);
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-normal);
+  color: var(--color-text-muted);
+}
+
+.config-description {
+  margin: var(--space-xs) 0 0;
+  font-size: var(--font-size-sm);
+  font-style: italic;
+  color: var(--color-text-secondary);
+}
+
+
+/* ==========================================================================
+   4. Form Sections
+   ========================================================================== */
+
+.form-section {
+  margin: 0 0 var(--space-lg);
+  padding: 0;
+  border: none;
+}
+
+.form-section-title {
+  display: flex;
+  align-items: center;
+  gap: var(--space-xs);
+  margin: 0 0 var(--space-md);
+  padding-bottom: var(--space-xs);
+  font-size: var(--font-size-lg);
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-text-primary);
+  border-bottom: 2px solid var(--color-primary);
+}
+
+.form-section-title .icon {
+  font-size: 1.2em;
+}
+
+.form-section-content {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-md);
+}
+
+
+/* ==========================================================================
+   5. Form Groups (Label + Description + Input)
+   ========================================================================== */
+
+.form-group {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2xs);
+}
+
+.form-label {
+  display: block;
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-text-primary);
+}
+
+.form-label a {
+  color: var(--color-text-link);
+  text-decoration: none;
+  font-weight: var(--font-weight-normal);
+}
+
+.form-label a:hover {
+  text-decoration: underline;
+}
+
+.form-description {
+  margin: 0;
+  font-size: var(--font-size-xs);
+  font-style: italic;
+  color: var(--color-text-muted);
+  line-height: var(--line-height-relaxed);
+}
+
+
+/* ==========================================================================
+   6. Input Styles
+   ========================================================================== */
+
+/* Base Input */
+.form-input {
+  width: 100%;
+  padding: var(--space-sm) var(--space-md);
+  font-family: var(--font-family);
+  font-size: var(--font-size-md);
+  color: var(--color-text-primary);
+  background-color: var(--color-bg-input);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  box-shadow: var(--shadow-sm);
+  transition: border-color var(--transition-fast), box-shadow var(--transition-fast);
+}
+
+.form-input::placeholder {
+  color: var(--color-text-muted);
+}
+
+.form-input:hover {
+  border-color: rgba(0, 0, 0, 0.2);
+}
+
+.form-input:focus {
+  outline: none;
+  border-color: var(--color-border-focus);
+  box-shadow: var(--shadow-focus);
+}
+
+/* Select */
+.form-select {
+  appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%23666' d='M6 8L1 3h10z'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right var(--space-sm) center;
+  padding-right: var(--space-xl);
+  cursor: pointer;
+}
+
+
+/* ==========================================================================
+   7. Checkbox Styles
+   ========================================================================== */
+
+.checkbox-group {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-sm);
+  padding: var(--space-sm) 0;
+}
+
+.checkbox-input {
+  flex-shrink: 0;
+  width: 18px;
+  height: 18px;
+  margin-top: 2px;
+  accent-color: var(--color-primary);
+  cursor: pointer;
+}
+
+.checkbox-label {
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-medium);
+  color: var(--color-text-primary);
+  cursor: pointer;
+}
+
+.checkbox-description {
+  margin-top: var(--space-2xs);
+  font-size: var(--font-size-xs);
+  font-style: italic;
+  color: var(--color-text-muted);
+}
+
+
+/* ==========================================================================
+   8. Multiselect Overrides (Bootstrap Multiselect)
+   ========================================================================== */
+
+.multiselect-wrapper .btn-group {
+  width: 100%;
+}
+
+.multiselect-wrapper .multiselect {
+  width: 100%;
+  text-align: left;
+  padding: var(--space-sm) var(--space-md);
+  font-size: var(--font-size-md);
+  color: var(--color-text-primary);
+  background-color: var(--color-bg-input);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  box-shadow: var(--shadow-sm);
+}
+
+.multiselect-wrapper .multiselect:hover {
+  border-color: rgba(0, 0, 0, 0.2);
+}
+
+.multiselect-wrapper .multiselect:focus {
+  outline: none;
+  border-color: var(--color-border-focus);
+  box-shadow: var(--shadow-focus);
+}
+
+.multiselect-wrapper .multiselect-container {
+  width: 100%;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  box-shadow: var(--shadow-lg);
+}
+
+.multiselect-wrapper .multiselect-container > li > a {
+  padding: var(--space-xs) var(--space-md);
+}
+
+.multiselect-wrapper .multiselect-container > li > a:hover {
+  background-color: rgba(138, 90, 171, 0.1);
+}
+
+
+/* ==========================================================================
+   9. Buttons
+   ========================================================================== */
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-xs);
+  padding: var(--space-sm) var(--space-lg);
+  font-family: var(--font-family);
+  font-size: var(--font-size-md);
+  font-weight: var(--font-weight-semibold);
+  text-decoration: none;
+  border: none;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: all var(--transition-fast);
+}
+
+.btn-primary {
+  width: 100%;
+  padding: var(--space-md) var(--space-xl);
+  font-size: var(--font-size-lg);
+  color: var(--color-text-inverse);
+  background-color: var(--color-primary);
+  box-shadow: var(--shadow-md);
+}
+
+.btn-primary:hover {
+  background-color: var(--color-primary-hover);
+  box-shadow: var(--shadow-lg);
+  transform: translateY(-1px);
+}
+
+.btn-primary:active {
+  background-color: var(--color-primary-active);
+  box-shadow: var(--shadow-sm);
+  transform: translateY(0);
+}
+
+.btn-primary:focus {
+  outline: none;
+  box-shadow: var(--shadow-focus);
+}
+
+
+/* ==========================================================================
+   10. Footer / Install Section
+   ========================================================================== */
+
+.install-section {
+  margin-top: var(--space-xl);
+  padding-top: var(--space-lg);
+  border-top: 1px solid var(--color-divider);
+  text-align: center;
+}
+
+.install-hint {
+  margin-top: var(--space-sm);
+  font-size: var(--font-size-xs);
+  color: var(--color-text-muted);
+}
+
+
+/* ==========================================================================
+   11. Conditional/Collapsible Sections
+   ========================================================================== */
+
+.conditional-section {
+  display: none;
+  padding: var(--space-md);
+  margin-top: var(--space-sm);
+  background-color: rgba(0, 0, 0, 0.02);
+  border-radius: var(--radius-sm);
+  border-left: 3px solid var(--color-primary);
+}
+
+.conditional-section.is-visible {
+  display: block;
+}
+
+
+/* ==========================================================================
+   12. Utility Classes
+   ========================================================================== */
+
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+.text-center {
+  text-align: center;
+}
+
+.mt-0 { margin-top: 0; }
+.mb-0 { margin-bottom: 0; }
+.mt-md { margin-top: var(--space-md); }
+.mb-md { margin-bottom: var(--space-md); }
+
+
+/* ==========================================================================
+   13. Responsive Adjustments
+   ========================================================================== */
+
+@media (min-width: 640px) {
+  :root {
+    --container-padding: var(--space-xl);
+  }
+  
+  .config-logo {
+    width: 100px;
+    height: 100px;
+  }
+  
+  .config-title {
+    font-size: var(--font-size-2xl);
+  }
+}
+
+@media (min-width: 1024px) {
+  :root {
+    --container-max-width: 700px;
+  }
+}

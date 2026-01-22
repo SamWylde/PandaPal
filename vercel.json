@@ -84,6 +84,14 @@
             "destination": "/catalog/web/index.html"
         },
         {
+            "source": "/static/css/(.*)",
+            "destination": "/scraper/static/css/$1"
+        },
+        {
+            "source": "/static/js/(.*)",
+            "destination": "/scraper/static/js/$1"
+        },
+        {
             "source": "/static/(.*)",
             "destination": "/catalog/web/$1"
         },

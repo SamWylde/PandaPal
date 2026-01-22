@@ -14,12 +14,12 @@ app.use(swStats.getMiddleware({
   authentication: true,
   onAuthenticate: (req, username, password) => {
     return username === process.env.METRICS_USER
-        && password === process.env.METRICS_PASSWORD
+      && password === process.env.METRICS_PASSWORD
   },
 }))
-app.use(express.static('static', { maxAge: '1y' }));
+app.use('/static', express.static('static', { maxAge: '1y' }));
 app.use((req, res, next) => serverless(req, res, next));
 app.listen(process.env.PORT || 7000, () => {
   initBestTrackers()
-      .then(() => console.log(`Started addon at: http://localhost:${process.env.PORT || 7000}`));
+    .then(() => console.log(`Started addon at: http://localhost:${process.env.PORT || 7000}`));
 });
