@@ -429,6 +429,8 @@ export default function landingTemplate(manifest, config = {}) {
               $(document).ready(function() {
                   const commonOptions = {
                       nonSelectedText: 'None',
+                      maxHeight: 400,
+                      numberDisplayed: 1,
                       buttonTextAlignment: 'left',
                       onChange: () => generateInstallLink()
                   };
@@ -506,18 +508,18 @@ export default function landingTemplate(manifest, config = {}) {
           }
           
           function generateInstallLink() {
-              const catalogsValue = $('#iCatalogs').val().join(',') || '';
+              const catalogsValue = ($('#iCatalogs').val() || []).join(',') || '';
               const providersList = $('#iProviders').val() || [];
               const providersValue = providersList.join(',');
-              const qualityFilterValue = $('#iQualityFilter').val().join(',') || '';
+              const qualityFilterValue = ($('#iQualityFilter').val() || []).join(',') || '';
               const sortValue = $('#iSort').val() || '';
-              const languagesValue = $('#iLanguages').val().join(',') || [];
+              const languagesValue = ($('#iLanguages').val() || []).join(',') || [];
               const limitValue = $('#iLimit').val() || '';
               const sizeFilterValue = $('#iSizeFilter').val() || '';
               const forceIncludeExcludedValue = $('#iForceIncludeExcluded').prop('checked');
 
               
-              const debridOptionsValue = $('#iDebridOptions').val().join(',') || '';
+              const debridOptionsValue = ($('#iDebridOptions').val() || []).join(',') || '';
               const realDebridValue = $('#iRealDebrid').val() || '';
               const allDebridValue = $('#iAllDebrid').val() || '';
               const debridLinkValue = $('#iDebridLink').val() || ''
