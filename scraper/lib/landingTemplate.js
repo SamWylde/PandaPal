@@ -317,11 +317,11 @@ export default function landingTemplate(manifest, config = {}) {
             ${catalogsHTML}
          </select>
          
-         <label class="label" for="iRpdb">RPDB API Key (Optional):</label>
+         <label class="label" for="iRpdb">RPDB API Key (Get it <a href="https://ratingposterdb.com/api-key/" target="_blank">here</a>):</label>
          <div class="description-text">Enter your Rating Poster Database API Key for rated posters.</div>
          <input type="text" id="iRpdb" onchange="generateInstallLink()" class="input" placeholder="Optional">
 
-         <label class="label" for="iTrakt">Trakt Client ID (Optional):</label>
+         <label class="label" for="iTrakt">Trakt Client ID (Get it <a href="https://trakt.tv/oauth/applications" target="_blank">here</a>):</label>
          <div class="description-text">Enter your Trakt Client ID to enable personalized recommendations (requires Trakt authentication later).</div>
          <input type="text" id="iTrakt" onchange="generateInstallLink()" class="input" placeholder="Optional">
          
