@@ -356,48 +356,49 @@ export default function landingTemplate(manifest, config = {}) {
             ${debridProvidersHTML}
          </select>
          
-         <div id="dRealDebrid">
+         <div id="dRealDebrid" style="display: none;">
            <label class="label" for="iRealDebrid">RealDebrid API Key (Find it <a href='https://real-debrid.com/apitoken' target="_blank">here</a>):</label>
            <input type="text" id="iRealDebrid" onchange="generateInstallLink()" class="input">
          </div>
          
-         <div id="dAllDebrid">
+         <div id="dAllDebrid" style="display: none;">
            <label class="label" for="iAllDebrid">AllDebrid API Key (Create it <a href='https://alldebrid.com/apikeys' target="_blank">here</a>):</label>
            <input type="text" id="iAllDebrid" onchange="generateInstallLink()" class="input">
          </div>
          
-         <div id="dPremiumize">
+         <div id="dPremiumize" style="display: none;">
            <label class="label" for="iPremiumize">Premiumize API Key (Find it <a href='https://www.premiumize.me/account' target="_blank">here</a>):</label>
            <input type="text" id="iPremiumize" onchange="generateInstallLink()" class="input">
          </div>
          
-         <div id="dDebridLink">
+         <div id="dDebridLink" style="display: none;">
            <label class="label" for="iDebridLink">DebridLink API Key (Find it <a href='https://debrid-link.fr/webapp/apikey' target="_blank">here</a>):</label>
            <input type="text" id="iDebridLink" onchange="generateInstallLink()" class="input">
          </div>
          
-         <div id="dEasyDebrid">
+         <div id="dEasyDebrid" style="display: none;">
            <label class="label" for="iEasyDebrid">EasyDebrid API Key:</label>
            <input type="text" id="iEasyDebrid" onchange="generateInstallLink()" class="input">
          </div>
          
-         <div id="dOffcloud">
+         <div id="dOffcloud" style="display: none;">
            <label class="label" for="iOffcloud">Offcloud API Key (Find it <a href='https://offcloud.com/#/account' target="_blank">here</a>):</label>
            <input type="text" id="iOffcloud" onchange="generateInstallLink()" class="input">
          </div>
          
-         <div id="dTorbox">
+         <div id="dTorbox" style="display: none;">
            <label class="label" for="iTorbox">TorBox API Key (Find it <a href='https://torbox.app/settings' target="_blank">here</a>):</label>
            <input type="text" id="iTorbox" onchange="generateInstallLink()" class="input">
          </div>
          
-         <div id="dPutio">
+         <div id="dPutio" style="display: none;">
            <label class="label" for="iPutio">Put.io ClientId and Token (Create new OAuth App <a href='https://app.put.io/oauth' target="_blank">here</a>):</label>
+           <div class="description-text">Cloud storage service that fetches torrents for you.</div>
            <input type="text" id="iPutioClientId" placeholder="ClientId" onchange="generateInstallLink()" class="input">
            <input type="text" id="iPutioToken" placeholder="Token" onchange="generateInstallLink()" class="input">
          </div>
          
-         <div id="dDebridOptions">
+         <div id="dDebridOptions" style="display: none;">
            <label class="label" for="iDebridOptions">Debrid options:</label>
            <select id="iDebridOptions" class="input" onchange="generateInstallLink()" name="debridOptions[]" multiple="multiple">
               ${debridOptionsHTML}
