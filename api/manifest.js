@@ -27,16 +27,30 @@ export default async function (req, res) {
     const mergedManifest = {
         ...tManifest,
         id: 'brazuca.pandapal',
-        name: 'PandaPal',
-        description: 'Thomas is tired of all the others not working!',
+        name: tManifest.name || 'PandaPal',
+        description: tManifest.description || 'Thomas is tired of all the others not working!',
         catalogs: [...(cManifest.catalogs || []), ...(tManifest.catalogs || [])],
-        resources: ['stream', 'catalog', 'meta'],
-        types: ['movie', 'series', 'anime', 'other'],
+        resources: tManifest.resources || ['stream', 'catalog', 'meta'],
+        types: Array.from(new Set([...(cManifest.types || []), ...(tManifest.types || []), 'movie', 'series', 'anime', 'other'])),
         behaviorHints: {
             configurable: true,
             configurationRequired: false
         }
     };
+
+    // Ensure resources are objects with idPrefixes if they aren't already
+    mergedManifest.resources = mergedManifest.resources.map(res => {
+        if (typeof res === 'string') {
+            if (res === 'stream') {
+                return { name: 'stream', types: ['movie', 'series', 'anime'], idPrefixes: ['tt', 'kitsu'] };
+            }
+            if (res === 'catalog') {
+                return { name: 'catalog', types: ['movie', 'series', 'anime', 'other'], idPrefixes: ['tt', 'kitsu', 'brazuca', 'pandapal'] };
+            }
+            return { name: res };
+        }
+        return res;
+    });
 
     // Ensure background and logo use the host
     mergedManifest.logo = `${host}/catalog/web/assets/assets/logo.png`;
