@@ -19,20 +19,34 @@ const DATABASE_URI = process.env.DATABASE_URI;
 const memoryCache = new KeyvCacheableMemory({ ttl: MESSAGE_VIDEO_URL_TTL, lruSize: Infinity });
 
 let remoteCache;
-if (DATABASE_URI && DATABASE_URI.startsWith('postgres') && !DATABASE_URI.includes('127.0.0.1') && !DATABASE_URI.includes('localhost')) {
-  remoteCache = new KeyvPostgres(DATABASE_URI, {
-    table: 'torrentio_addon_cache',
-    ssl: {
-      require: true,
-      rejectUnauthorized: false
+try {
+  if (DATABASE_URI && (DATABASE_URI.startsWith('postgres') || DATABASE_URI.startsWith('postgresql'))) {
+    if (DATABASE_URI.includes('127.0.0.1') || DATABASE_URI.includes('localhost')) {
+      console.warn('Cache: DATABASE_URI points to localhost. Skipping remote cache to prevent ECONNREFUSED.');
+    } else {
+      // KeyvPostgres sometimes (depending on version) prefers postgresql:// over postgres://
+      const normalizedUri = DATABASE_URI.replace(/^postgres:\/\//, 'postgresql://');
+
+      remoteCache = new KeyvPostgres(normalizedUri, {
+        table: 'torrentio_addon_cache',
+        ssl: {
+          require: true,
+          rejectUnauthorized: false
+        }
+      });
+
+      // Attach error handler to prevent unhandled rejection crashes from the underlying pool
+      remoteCache.on('error', (err) => {
+        console.error('KeyvPostgres Background Error:', err);
+        // If fatal, we might want to kill remoteCache, but for now just logging prevents the crash
+      });
     }
-  });
-} else {
-  // remoteCache remains undefined
-  if (DATABASE_URI) {
-    console.warn('Cache: DATABASE_URI found but invalid/localhost. Skipping remote cache connection.');
   }
+} catch (e) {
+  console.error('Cache: Failed to initialize remote cache:', e);
+  remoteCache = null;
 }
+
 
 async function cacheWrap(cache, key, method, ttl) {
   if (!cache) {
