@@ -296,7 +296,7 @@
         }
 
         // Generate final URL
-        const configuration = configValue ? '/' + configValue : '';
+        const configuration = configValue ? '/c/' + configValue : '';
         const manifestUrl = window.location.host + configuration + '/manifest.json';
 
         elements.installLink.attr('href', 'stremio://' + manifestUrl);

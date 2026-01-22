@@ -68,8 +68,8 @@ async def meta_endpoint(type: str, id: str, configs: str | None = None):
     headers = add_cache_headers(CACHE_DURATIONS["VERY_LONG"])
     return __json_response(meta, extra_headers=headers)
 
-@app.get("/manifest.json")
-@app.get("/c/{configs}/manifest.json")
+@app.get("/catalog/manifest.json")
+@app.get("/c/{configs}/catalog/manifest.json")
 async def manifest_endpoint(request: Request, configs: str | None = None):
     referer = str(request.base_url)
     manifest = worker.get_configured_manifest(referer, configs)

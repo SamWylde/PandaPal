@@ -14,12 +14,14 @@ export default async function (req, res) {
     let cManifest = { catalogs: [] };
     try {
         // Note: This might fail if the function isn't warm or during local dev if not handled
-        const response = await axios.get(`${host}/c/${configs}/catalog/manifest.json`).catch(() => null);
+        // We use a timeout to prevent hanging the main manifest request
+        const configsPath = configs ? `c/${encodeURIComponent(configs)}/` : '';
+        const response = await axios.get(`${host}/${configsPath}catalog/manifest.json`, { timeout: 5000 }).catch(() => null);
         if (response && response.data) {
             cManifest = response.data;
         }
     } catch (e) {
-        // Fallback if catalog fails
+        console.error('Failed to fetch Cyberflix manifest:', e.message);
     }
 
     const mergedManifest = {
