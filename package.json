@@ -4,7 +4,11 @@
   "type": "module",
   "scripts": {
     "start": "node scraper/index.js",
-    "dev": "vercel dev"
+    "dev": "vercel dev",
+    "check-domains": "node scraper/lib/cardigann/cli.js check",
+    "sync-definitions": "node scraper/lib/cardigann/cli.js sync",
+    "domain-report": "node scraper/lib/cardigann/cli.js report",
+    "auto-update-domains": "node scraper/lib/cardigann/cli.js auto"
   },
   "dependencies": {
     "@keyv/postgres": "^1.0.0",
