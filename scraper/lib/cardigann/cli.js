@@ -6,13 +6,16 @@
  *   check  - Check for domain updates against Prowlarr
  *   sync   - Force sync definitions from Prowlarr
  *   report - Generate full domain comparison report
+ *   auto   - Auto-update scraper files with latest domains
  *
  * Usage:
  *   node lib/cardigann/cli.js check
  *   npm run check-domains
+ *   npm run auto-update-domains
  */
 
 import { createDomainReport, refreshDefinitions, getAvailableIndexers, getUpdatedDomains } from './search.js';
+import { autoUpdateDomains } from './autoupdate.js';
 
 // Current domains in our scrapers (for comparison)
 const CURRENT_DOMAINS = {
@@ -62,8 +65,12 @@ async function main() {
             case 'report':
                 await generateReport();
                 break;
+            case 'auto':
+            case 'update':
+                await runAutoUpdate();
+                break;
             default:
-                console.log('Unknown command. Available commands: check, sync, report');
+                console.log('Unknown command. Available commands: check, sync, report, auto');
                 process.exit(1);
         }
     } catch (error) {
@@ -134,6 +141,32 @@ async function syncDefinitions() {
     for (const [id, info] of Object.entries(metadata.indexers)) {
         console.log(`  - ${id}: ${info.links?.length || 0} domains`);
     }
+}
+
+async function runAutoUpdate() {
+    console.log('Auto-updating scraper files with latest domains...\n');
+
+    const dryRun = process.argv.includes('--dry-run');
+    if (dryRun) {
+        console.log('(DRY RUN - no files will be modified)\n');
+    }
+
+    const results = await autoUpdateDomains({ dryRun, verbose: true });
+
+    console.log('\n' + '='.repeat(60));
+    if (results.updated.length > 0 && !dryRun) {
+        console.log('✅ Scraper files have been updated!');
+        console.log('   Updated indexers:', results.updated.map(u => u.indexerId).join(', '));
+        console.log('\n   Remember to commit the changes:');
+        console.log('   git add scraper/lib/sources/*.js');
+        console.log('   git commit -m "chore: auto-update scraper domains from Prowlarr"');
+    } else if (results.updated.length > 0 && dryRun) {
+        console.log('🔍 Would update:', results.updated.map(u => u.indexerId).join(', '));
+        console.log('   Run without --dry-run to apply changes');
+    } else {
+        console.log('✅ All scraper files are already up to date!');
+    }
+    console.log('='.repeat(60));
 }
 
 async function generateReport() {

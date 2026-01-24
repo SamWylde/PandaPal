@@ -3,6 +3,7 @@ import swStats from 'swagger-stats';
 import serverless from './serverless.js';
 import { manifest } from './lib/manifest.js';
 import { initBestTrackers } from './lib/magnetHelper.js';
+import { scheduleAutoUpdate } from './lib/cardigann/autoupdate.js';
 
 const app = express();
 app.enable('trust proxy');
@@ -22,4 +23,10 @@ app.use((req, res, next) => serverless(req, res, next));
 app.listen(process.env.PORT || 7000, () => {
   initBestTrackers()
     .then(() => console.log(`Started addon at: http://localhost:${process.env.PORT || 7000}`));
+
+  // Auto-update scraper domains from Prowlarr (runs every 24h)
+  // Set AUTO_UPDATE_DOMAINS=false to disable
+  if (process.env.AUTO_UPDATE_DOMAINS !== 'false') {
+    scheduleAutoUpdate(24); // Check every 24 hours
+  }
 });

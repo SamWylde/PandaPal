@@ -10,3 +10,4 @@
 export { CardigannEngine } from './engine.js';
 export { DefinitionSync } from './sync.js';
 export { searchWithCardigann, getAvailableIndexers } from './search.js';
+export { autoUpdateDomains, scheduleAutoUpdate } from './autoupdate.js';
