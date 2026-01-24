@@ -4,7 +4,10 @@
   "exports": "./index.js",
   "type": "module",
   "scripts": {
-    "start": "node index.js"
+    "start": "node index.js",
+    "check-domains": "node lib/cardigann/cli.js check",
+    "sync-definitions": "node lib/cardigann/cli.js sync",
+    "domain-report": "node lib/cardigann/cli.js report"
   },
   "author": "TheBeastLT <pauliox@beyond.lt>",
   "license": "MIT",
