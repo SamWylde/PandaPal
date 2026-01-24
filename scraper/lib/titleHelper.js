@@ -29,3 +29,12 @@ export function parseSize(sizeText) {
   }
   return Math.floor(parseFloat(sizeText.replace(/,/g, '')) * scale);
 }
+
+export function extractResolution(title) {
+  if (!title) return null;
+  if (title.includes('2160p') || title.includes('4K')) return '4k';
+  if (title.includes('1080p')) return '1080p';
+  if (title.includes('720p')) return '720p';
+  if (title.includes('480p')) return '480p';
+  return null;
+}
