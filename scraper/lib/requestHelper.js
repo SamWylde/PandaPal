@@ -31,6 +31,15 @@ export async function performRequest(url, options = {}) {
 
     // Check for Cloudflare blocks
     if (isCloudflareBlocked(response)) {
+      if (options.skipBrowserFallback) {
+        console.warn(`[RequestHelper] Cloudflare block detected for ${url} (Status: ${response.status}). Skipping browser fallback (requested).`);
+        // Return a 403-like error so the caller knows it failed due to block
+        const error = new Error('Cloudflare blocking request');
+        error.code = 'CLOUDFLARE_BLOCKED';
+        error.response = response;
+        throw error;
+      }
+
       console.warn(`[RequestHelper] Cloudflare block detected for ${url} (Status: ${response.status}). Switching to Serverless Browser...`);
       const html = await requestWithBrowser(url);
       return { data: html, status: 200 }; // Mock an axios-like response structure with valid HTML
@@ -43,7 +52,17 @@ export async function performRequest(url, options = {}) {
     return response;
 
   } catch (error) {
+    if (error.code === 'CLOUDFLARE_BLOCKED') {
+      throw error; // Re-throw intentional block
+    }
+
     // If it's a network error or other fatal error that prevented obtaining a response, try browser as last resort
+    // Unless skipped
+    if (options.skipBrowserFallback) {
+      console.warn(`[RequestHelper] Request failed: ${error.message}. Skipping browser fallback.`);
+      throw error;
+    }
+
     console.warn(`[RequestHelper] Request failed: ${error.message}. Retrying with Serverless Browser...`);
     try {
       const html = await requestWithBrowser(url);

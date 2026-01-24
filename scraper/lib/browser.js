@@ -2,37 +2,49 @@ import puppeteer from 'puppeteer-core';
 import chromium from '@sparticuz/chromium';
 import path from 'path';
 
-// Cache the browser instance to reuse it across warm invocations
+// Cache the browser instance and the initialization promise
 let browser = null;
+let browserPromise = null;
 
 export async function getBrowser() {
     if (browser) {
         return browser;
     }
 
-    try {
-        // Vercel / AWS Lambda environment
-        const isLambda = process.env.AWS_LAMBDA_FUNCTION_VERSION || process.env.VERCEL || process.env.NEXT_PUBLIC_VERCEL_ENV;
-
-        const executablePath = isLambda
-            ? await chromium.executablePath()
-            : process.env.CHROME_EXECUTABLE_PATH || 'C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe'; // Fallback for local windows dev
-
-        console.log(`[Browser] Launching browser with executable: ${executablePath}`);
-
-        browser = await puppeteer.launch({
-            args: isLambda ? chromium.args : ['--no-sandbox', '--disable-setuid-sandbox'],
-            defaultViewport: chromium.defaultViewport,
-            executablePath: executablePath,
-            headless: chromium.headless,
-            ignoreHTTPSErrors: true,
-        });
-
-        return browser;
-    } catch (error) {
-        console.error('[Browser] Failed to launch browser:', error);
-        throw error;
+    // If initialization is already in progress, wait for it
+    if (browserPromise) {
+        return browserPromise;
     }
+
+    // Start initialization
+    browserPromise = (async () => {
+        try {
+            // Vercel / AWS Lambda environment
+            const isLambda = process.env.AWS_LAMBDA_FUNCTION_VERSION || process.env.VERCEL || process.env.NEXT_PUBLIC_VERCEL_ENV;
+
+            const executablePath = isLambda
+                ? await chromium.executablePath()
+                : process.env.CHROME_EXECUTABLE_PATH || 'C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe'; // Fallback for local windows dev
+
+            console.log(`[Browser] Launching browser with executable: ${executablePath}`);
+
+            browser = await puppeteer.launch({
+                args: isLambda ? chromium.args : ['--no-sandbox', '--disable-setuid-sandbox'],
+                defaultViewport: chromium.defaultViewport,
+                executablePath: executablePath,
+                headless: chromium.headless,
+                ignoreHTTPSErrors: true,
+            });
+
+            return browser;
+        } catch (error) {
+            console.error('[Browser] Failed to launch browser:', error);
+            browserPromise = null; // Reset promise on failure so we can retry
+            throw error;
+        }
+    })();
+
+    return browserPromise;
 }
 
 export async function requestWithBrowser(url) {

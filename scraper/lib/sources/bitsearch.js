@@ -6,7 +6,7 @@ const BITSEARCH_DOMAINS = [
     'https://bitsearch.to'
 ];
 
-export async function searchBitSearch(query) {
+export async function searchBitSearch(query, skipBrowser = false) {
     const torrents = [];
     const errors = [];
 
@@ -14,7 +14,7 @@ export async function searchBitSearch(query) {
         try {
             const url = `${domain}/search?q=${encodeURIComponent(query)}`;
             // performRequest handles Cloudflare detection and browser fallback
-            const response = await performRequest(url);
+            const response = await performRequest(url, { skipBrowserFallback: skipBrowser });
 
             const $ = cheerio.load(response.data);
 

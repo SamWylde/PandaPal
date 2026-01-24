@@ -59,15 +59,14 @@ async function runFastTier(params) {
         promises.push(searchNyaa(kitsuId, title, episode));
     }
 
-    // Add new independent scrapers to fast tier as they are usually fast
-    // We search by IMDB ID if possible, otherwise by title if we had one (but we mainly have imdbId for standard content)
-    // BitSearch and SolidTorrents work best with text queries, so we use IMDB ID as query for precision
+    // Add new independent scrapers to fast tier
+    // Pass skipBrowser = true to avoid slow browser launch if they are blocked
     if (imdbId) {
-        promises.push(searchBitSearch(imdbId));
-        promises.push(searchSolidTorrents(imdbId));
+        promises.push(searchBitSearch(imdbId, true));
+        promises.push(searchSolidTorrents(imdbId, true));
     } else if (title) {
-        promises.push(searchBitSearch(title));
-        promises.push(searchSolidTorrents(title));
+        promises.push(searchBitSearch(title, true));
+        promises.push(searchSolidTorrents(title, true));
     }
 
     if (promises.length === 0) {
@@ -87,17 +86,30 @@ async function runFastTier(params) {
 }
 
 async function runSlowTier(params) {
-    const { imdbId, type } = params;
+    const { imdbId, type, title } = params;
 
-    if (!imdbId) {
-        return [];
+    const promises = [];
+
+    // Always search 1337x/TG (they handle CF automatically)
+    if (imdbId) {
+        promises.push(search1337x(imdbId, type));
+        promises.push(searchTorrentGalaxy(imdbId, type));
     }
 
-    // These natively handle Cloudflare bypassing now via browser.js
-    const promises = [
-        search1337x(imdbId, type),
-        searchTorrentGalaxy(imdbId, type)
-    ];
+    // Also RETRY BitSearch and SolidTorrents here with browser enabled
+    // This catches cases where Fast Tier failed due to CF
+    // They are idempotent enough that searching again is fine (browser cache helps)
+    if (imdbId) {
+        promises.push(searchBitSearch(imdbId, false));
+        promises.push(searchSolidTorrents(imdbId, false));
+    } else if (title) {
+        promises.push(searchBitSearch(title, false));
+        promises.push(searchSolidTorrents(title, false));
+    }
+
+    if (promises.length === 0) {
+        return [];
+    }
 
     const results = await Promise.allSettled(promises);
     const torrents = [];
