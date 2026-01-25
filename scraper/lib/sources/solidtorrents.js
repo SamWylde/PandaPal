@@ -44,7 +44,7 @@ export async function searchSolidTorrents(query, skipBrowser = false) {
                 const magnetUrl = $(el).find('a[href^="magnet:"]').attr('href');
                 const infoHash = magnetUrl ? magnetUrl.match(/btih:([a-fA-F0-9]+)/i)?.[1] : null;
 
-                const seeds = parseInt($(el).find('.stats .sees').text()) || 0;
+                const seeds = parseInt($(el).find('.stats .seeds').text()) || 0;
                 const size = $(el).find('.stats .size').text().trim();
 
                 if (title && infoHash) {

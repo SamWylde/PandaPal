@@ -15,30 +15,31 @@ import { parseCardigannYaml, extractDomains } from './parser.js';
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 // Map of indexer IDs to their scraper file info
+// Note: Variable names must match actual constants in source files (*_FALLBACK)
 const SCRAPER_FILE_MAP = {
     'yts': {
         file: path.join(__dirname, '../sources/yts.js'),
-        varName: 'YTS_DOMAINS',
+        varName: 'YTS_FALLBACK',
         transformDomain: (d) => d.includes('/api') ? d : `${d}/api/v2`
     },
     '1337x': {
         file: path.join(__dirname, '../sources/t1337x.js'),
-        varName: 'T1337X_DOMAINS',
+        varName: 'T1337X_FALLBACK',
         transformDomain: (d) => d
     },
     'torrentgalaxy': {
         file: path.join(__dirname, '../sources/torrentgalaxy.js'),
-        varName: 'TG_DOMAINS',
+        varName: 'TG_FALLBACK',
         transformDomain: (d) => d
     },
     'eztv': {
         file: path.join(__dirname, '../sources/eztv.js'),
-        varName: 'EZTV_DOMAINS',
+        varName: 'EZTV_FALLBACK',
         transformDomain: (d) => d.includes('/api') ? d : `${d}/api`
     },
     'nyaasi': {
         file: path.join(__dirname, '../sources/nyaa.js'),
-        varName: 'NYAA_DOMAINS',
+        varName: 'NYAA_FALLBACK',
         transformDomain: (d) => d
     }
 };
