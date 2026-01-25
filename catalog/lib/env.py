@@ -16,8 +16,8 @@ MDBLIST_API_KEY: str | None = os.getenv("MDBLIST_API_KEY") or None
 TRAKT_CLIENT_ID: str | None = os.getenv("TRAKT_CLIENT_ID") or None
 TRAKT_CLIENT_SECRET: str | None = os.getenv("TRAKT_CLIENT_SECRET") or None
 
-SUPABASE_URL: str | None = os.getenv("SUPABASE_URL") or None
-SUPABASE_KEY: str | None = os.getenv("SUPABASE_KEY") or None
+SUPABASE_URL: str | None = os.getenv("SUPABASE_URL", "").strip() or None
+SUPABASE_KEY: str | None = os.getenv("SUPABASE_KEY", "").strip() or None
 
 SPONSOR: str = os.getenv("SPONSOR") or ""
 SKIP_DB_UPDATE: bool = os.getenv("SKIP_DB_UPDATE") == "True"
