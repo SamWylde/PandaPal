@@ -35,28 +35,11 @@ export function dummyManifest() {
 }
 
 function getName(manifest, config) {
-  const rootName = manifest?.name || 'PandaPal';
-  const mochSuffix = MochProviders
-    .filter(moch => config[moch.key])
-    .map(moch => moch.shortName)
-    .join('/');
-  return [rootName, mochSuffix].filter(v => v).join(' ');
+  return 'PandaPal';
 }
 
 function getDescription(config) {
-  const providersList = config[Providers.key] || DefaultProviders;
-  const enabledProvidersDesc = Providers.options
-    .map(provider => `${provider.label}${providersList.includes(provider.key) ? '(+)' : '(-)'}`)
-    .join(', ')
-  const enabledMochs = MochProviders
-    .filter(moch => config[moch.key])
-    .map(moch => moch.name)
-    .join(' & ');
-  const possibleMochs = MochProviders.map(moch => moch.name).join('/')
-  const mochsDesc = enabledMochs ? ` and ${enabledMochs} enabled` : '';
-  return 'Thomas is tired of all the others not working!'
-    + ` Currently supports ${enabledProvidersDesc}${mochsDesc}.`
-    + ` To configure providers, ${possibleMochs} support and other settings visit the PandaPal configuration page.`
+  return 'Thomas is tired of all the others not working! Hi Mom, Maggie, Skye, Dylan and Scarlette';
 }
 
 function getCatalogs(config) {
