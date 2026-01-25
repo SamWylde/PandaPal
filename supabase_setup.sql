@@ -155,3 +155,37 @@ COMMENT ON TABLE public.scraper_configurations IS
   'Stores scraper configurations synced from Prowlarr/Indexers GitHub repo.
    Updated daily via /api/cron/update-domains endpoint.
    Config contains: links (domains), search paths, selectors, etc.';
+
+-- 10. indexer_health table (for tracking indexer performance)
+-- Stores health check results for each indexer to prioritize fast/reliable ones
+CREATE TABLE IF NOT EXISTS public.indexer_health (
+  "id" VARCHAR(50) PRIMARY KEY,              -- Indexer ID (e.g., 'yts', '1337x')
+  "is_public" BOOLEAN DEFAULT true,          -- Only use public indexers (no auth required)
+  "is_enabled" BOOLEAN DEFAULT true,         -- Manually enable/disable indexer
+  "last_check" TIMESTAMPTZ,                  -- When last health check ran
+  "last_success" TIMESTAMPTZ,                -- When last successful response
+  "success_rate" DECIMAL(5,2) DEFAULT 0,     -- Success rate percentage (0-100)
+  "avg_response_ms" INTEGER DEFAULT 0,       -- Average response time in milliseconds
+  "total_checks" INTEGER DEFAULT 0,          -- Total number of health checks
+  "total_successes" INTEGER DEFAULT 0,       -- Total successful checks
+  "total_failures" INTEGER DEFAULT 0,        -- Total failed checks
+  "last_error" TEXT,                         -- Last error message
+  "working_domain" TEXT,                     -- Currently working domain URL
+  "priority" INTEGER DEFAULT 50,             -- Priority score (higher = use first, 0-100)
+  "updated_at" TIMESTAMPTZ DEFAULT now()
+);
+
+-- Create indexes for health queries
+CREATE INDEX IF NOT EXISTS idx_indexer_health_priority
+  ON public.indexer_health("priority" DESC);
+CREATE INDEX IF NOT EXISTS idx_indexer_health_enabled
+  ON public.indexer_health("is_enabled", "is_public");
+
+-- Enable RLS and create policy
+ALTER TABLE public.indexer_health ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "indexer_health_service_role_access"
+  ON public.indexer_health FOR ALL USING (true);
+
+COMMENT ON TABLE public.indexer_health IS
+  'Tracks health metrics for each indexer. Used to prioritize fast/reliable
+   indexers during real-time searches. Updated by /api/cron/health-check.';
