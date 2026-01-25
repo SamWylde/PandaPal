@@ -10,7 +10,8 @@ import axios from 'axios';
 import { getScraperConfig, supabase } from './db.js';
 import { PUBLIC_INDEXERS, DefinitionSync } from './cardigann/sync.js';
 import { parseCardigannYaml, extractSearchConfig } from './cardigann/parser.js';
-import { solveCFChallenge, getCachedSession, requestWithCFSession } from './cfSolver.js';
+// NOTE: CF bypass disabled - Vercel serverless cannot solve Turnstile challenges
+// (requires headed browser + xvfb which aren't available on serverless)
 // NOTE: autoUpdateDomains is now called by separate /api/cron/prowlarr-update endpoint
 
 const supabaseUrl = process.env.SUPABASE_URL; // Still needed for passed logic if any? 
@@ -220,43 +221,9 @@ async function checkIndexer(indexerId) {
             const blockType = detectBlockType(response, responseText);
             if (blockType) {
                 console.log(`[HealthCheck] ${indexerId} (${domain}): ${blockType}`);
-
-                // Attempt CF bypass if it's a Cloudflare block
-                if (blockType.toLowerCase().includes('cloudflare')) {
-                    console.log(`[HealthCheck] ${indexerId}: Attempting CF bypass...`);
-                    try {
-                        const cfResult = await solveCFChallenge(testUrl, { timeout: 60000 });
-                        if (cfResult.success) {
-                            // Retry with CF cookies
-                            console.log(`[HealthCheck] ${indexerId}: CF solved, retrying with cookies...`);
-                            const retryResponse = await requestWithCFSession(testUrl, cfResult, axios);
-                            const retryTime = Date.now() - startTime;
-                            const retryText = typeof retryResponse.data === 'string'
-                                ? retryResponse.data
-                                : JSON.stringify(retryResponse.data);
-
-                            // Check if retry worked
-                            const retryBlockType = detectBlockType(retryResponse, retryText);
-                            if (!retryBlockType && retryText.length > 500) {
-                                console.log(`[HealthCheck] ${indexerId} (${domain}): CF BYPASS SUCCESS in ${retryTime}ms`);
-                                return {
-                                    success: true,
-                                    responseTime: retryTime,
-                                    workingDomain: domain,
-                                    error: null,
-                                    cfBypassed: true
-                                };
-                            } else {
-                                console.log(`[HealthCheck] ${indexerId}: CF bypass failed - still blocked: ${retryBlockType || 'invalid response'}`);
-                            }
-                        } else {
-                            console.log(`[HealthCheck] ${indexerId}: CF solver failed: ${cfResult.error}`);
-                        }
-                    } catch (cfError) {
-                        console.log(`[HealthCheck] ${indexerId}: CF bypass error: ${cfError.message}`);
-                    }
-                }
-
+                // NOTE: CF bypass disabled - Vercel serverless cannot solve Turnstile challenges
+                // (requires headed browser + xvfb which aren't available on serverless)
+                // Just mark as blocked and try next domain quickly
                 lastError = blockType;
                 continue; // Try next domain
             }

@@ -293,9 +293,11 @@ async function waitForChallengeSolved(page, timeoutMs = 60000) {
  * @returns {Promise<{success: boolean, cookies?: array, userAgent?: string, error?: string}>}
  */
 export async function solveCFChallenge(url, options = {}) {
-    const { timeout = 60000, useCache = true } = options;
+    // MAX 25s timeout - CF bypass rarely works on serverless anyway
+    const { timeout = 25000, useCache = true } = options;
+    const actualTimeout = Math.min(timeout, 25000); // Cap at 25s
     const startTime = Date.now();
-    console.log(`[CFSolver] Solving for ${url} (timeout: ${timeout}ms)`);
+    console.log(`[CFSolver] Solving for ${url} (timeout: ${actualTimeout}ms)`);
     const domain = extractDomain(url);
 
     console.log(`[CFSolver] Attempting to solve CF challenge for ${domain}`);
@@ -380,9 +382,9 @@ export async function solveCFChallenge(url, options = {}) {
         if (hasChallenge) {
             console.log('[CFSolver] CF challenge detected, waiting for solution...');
 
-            // Calculate remaining time, with minimum of 30s for challenge solving
+            // Calculate remaining time, with minimum of 10s for challenge solving
             const elapsedMs = Date.now() - startTime;
-            const remainingMs = Math.max(30000, timeout - elapsedMs);
+            const remainingMs = Math.max(10000, actualTimeout - elapsedMs);
             console.log(`[CFSolver] Challenge timeout: ${remainingMs}ms (elapsed: ${elapsedMs}ms)`);
 
             const solved = await waitForChallengeSolved(page, remainingMs);
