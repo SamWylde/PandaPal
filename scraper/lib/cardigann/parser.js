@@ -53,7 +53,11 @@ export function parseCardigannYaml(yamlContent) {
             const value = content.substring(2).trim();
 
             // Simple array item (like links)
-            if (currentArray && !value.includes(':')) {
+            // Allow colons if it's a URL (http/s) or if we are in links/legacylinks
+            const isUrl = value.startsWith('http');
+            const isLinkArray = currentArray === result.links || currentArray === result.legacylinks;
+
+            if (currentArray && (!value.includes(':') || isUrl || isLinkArray)) {
                 currentArray.push(value);
                 continue;
             }
@@ -64,6 +68,11 @@ export function parseCardigannYaml(yamlContent) {
         if (colonIndex > 0) {
             const key = content.substring(0, colonIndex).trim();
             let value = content.substring(colonIndex + 1).trim();
+
+            // Strip inline comments
+            if (value.includes('#')) {
+                value = value.split('#')[0].trim();
+            }
 
             // Remove quotes if present
             if ((value.startsWith('"') && value.endsWith('"')) ||
