@@ -367,45 +367,77 @@ async function updateHealthMetrics(indexerId, success, responseTime, workingDoma
 }
 
 /**
- * Run health checks for all public indexers
+ * Run health checks for a subset of public indexers (Batch: 10)
+ * To prevent Vercel timeouts, we only check the 10 oldest/unchecked indexers per run.
+ * With an hourly cron, this covers 240 indexers/day.
  */
 export async function runHealthChecks() {
-    console.log(`[HealthCheck] Starting health checks for ${PUBLIC_INDEXERS.length} public indexers...`);
+    console.log('[HealthCheck] Starting health check job...');
 
-    // Ensure definitions are synced AND updated in DB before running health checks
-    // This removes the need for a separate update-domains cron
+    // 1. Ensure definitions are synced
     try {
         console.log('[HealthCheck] Syncing definitions & updating DB...');
-        // Force update to DB, ensuring fresh configs
-        await autoUpdateDomains({
-            dryRun: false, // FORCE WRITE TO DB
-            verbose: true
-        });
-        console.log('[HealthCheck] Definitions synced & DB updated successfully');
+        await autoUpdateDomains({ dryRun: false, verbose: false });
     } catch (syncError) {
         console.error(`[HealthCheck] Failed to sync definitions: ${syncError.message}`);
-        // Continue anyway - some indexers may have existing DB configs
     }
+
+    // 2. Identify which indexers to check (Priority: Never checked > Oldest checked)
+    let candidates = [];
+
+    if (supabase) {
+        // Fetch current health status
+        const { data: healthData, error } = await supabase
+            .from('indexer_health')
+            .select('id, last_check');
+
+        const dbMap = new Map((healthData || []).map(r => [r.id, r.last_check]));
+
+        // Build list of all indexers with their "last check" time
+        candidates = PUBLIC_INDEXERS.map(id => {
+            const lastCheck = dbMap.get(id);
+            return {
+                id,
+                // If never checked, use timestamp 0 to prioritize it
+                timestamp: lastCheck ? new Date(lastCheck).getTime() : 0
+            };
+        });
+
+        // Sort: Ascending timestamp (0 first, then oldest dates)
+        candidates.sort((a, b) => a.timestamp - b.timestamp);
+    } else {
+        // Fallback if no DB: just take first 10
+        candidates = PUBLIC_INDEXERS.map(id => ({ id, timestamp: 0 }));
+    }
+
+    // 3. Select top 10
+    const BATCH_SIZE = 10;
+    const batch = candidates.slice(0, BATCH_SIZE);
+
+    console.log(`[HealthCheck] Processing batch of ${batch.length} indexers (out of ${PUBLIC_INDEXERS.length} total)`);
+    console.log(`[HealthCheck] Targets: ${batch.map(b => b.id).join(', ')}`);
 
     const results = {};
 
-    // Batch processing to avoid overwhelming node (concurrency: 5)
-    for (let i = 0; i < PUBLIC_INDEXERS.length; i += 5) {
-        const batch = PUBLIC_INDEXERS.slice(i, i + 5);
-        const batchPromises = batch.map(async (indexerId) => {
-            const result = await checkIndexer(indexerId);
-            results[indexerId] = result;
+    // 4. Run checks (Concurrent batch of 5)
+    // We already limited to 10 total, so we can just do 2 mini-batches of 5 or all 10 parallel?
+    // Let's stick to 5 concurrency to be safe on memory.
+    for (let i = 0; i < batch.length; i += 5) {
+        const miniBatch = batch.slice(i, i + 5);
+        const batchPromises = miniBatch.map(async (candidate) => {
+            const result = await checkIndexer(candidate.id);
+            results[candidate.id] = result;
 
-            // Save to DB
-            await updateHealthMetrics(indexerId, result.success, result.responseTime, result.workingDomain, result.error);
+            // Save to DB (Update last_check)
+            await updateHealthMetrics(candidate.id, result.success, result.responseTime, result.workingDomain, result.error);
 
-            return { indexerId, ...result };
+            return result;
         });
 
         await Promise.allSettled(batchPromises);
     }
 
-    console.log('[HealthCheck] Health checks complete');
+    console.log('[HealthCheck] Batch complete.');
     return results;
 }
 
