@@ -20,12 +20,17 @@ async function getPuppeteer() {
         // Try to use puppeteer-extra with stealth
         const puppeteerExtra = await import('puppeteer-extra');
         const StealthPlugin = await import('puppeteer-extra-plugin-stealth');
+        const UserPreferencesPlugin = await import('puppeteer-extra-plugin-user-preferences');
+
         // Ensure stealth evasion modules are available in the bundle
         await import('puppeteer-extra-plugin-stealth/evasions/chrome.app/index.js');
+
         puppeteer = puppeteerExtra.default;
         puppeteer.use(StealthPlugin.default());
+        puppeteer.use(UserPreferencesPlugin.default());
+
         stealthEnabled = true;
-        console.log('[CFSolver] Loaded puppeteer-extra with stealth plugin');
+        console.log('[CFSolver] Loaded puppeteer-extra with stealth & user-preferences plugins');
     } catch (err) {
         // Fall back to puppeteer-core without stealth
         console.log(`[CFSolver] Stealth plugin unavailable: ${err.message}`);
