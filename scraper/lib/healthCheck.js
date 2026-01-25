@@ -10,6 +10,7 @@ import axios from 'axios';
 import { getScraperConfig } from './db.js';
 import { PUBLIC_INDEXERS, DefinitionSync } from './cardigann/sync.js';
 import { parseCardigannYaml, extractSearchConfig } from './cardigann/parser.js';
+import { solveCFChallenge, getCachedSession, requestWithCFSession } from './cfSolver.js';
 
 const supabaseUrl = process.env.SUPABASE_URL;
 const supabaseKey = process.env.SUPABASE_KEY;
@@ -25,6 +26,95 @@ const TEST_IMDB_ID = 'tt1375666';
 
 // Initialize sync helper
 const sync = new DefinitionSync();
+
+/**
+ * Detect specific type of block/challenge from response
+ * Based on Prowlarr's CloudFlareDetectionService.cs implementation
+ * @see https://github.com/Prowlarr/Prowlarr/blob/develop/src/NzbDrone.Core/Http/CloudFlare/CloudFlareDetectionService.cs
+ * Returns null if no block detected
+ */
+function detectBlockType(response, responseText) {
+    const status = response.status;
+    const headers = response.headers || {};
+    const text = responseText.toLowerCase();
+    const server = (headers['server'] || '').toLowerCase();
+
+    // === Prowlarr-style Cloudflare Detection ===
+    // Check server header for CF/DDoS-Guard
+    const isCfServer = server.includes('cloudflare') || server.includes('cloudflare-nginx');
+    const isDdosGuard = server.includes('ddos-guard');
+
+    // Only check content if status is 403 or 503 (Prowlarr's approach)
+    if (status === 403 || status === 503) {
+        // Cloudflare challenge page titles (exact patterns from Prowlarr)
+        if (text.includes('<title>just a moment...</title>')) {
+            return 'Cloudflare JS challenge';
+        }
+        if (text.includes('<title>attention required! | cloudflare</title>')) {
+            return 'Cloudflare CAPTCHA challenge';
+        }
+        if (text.includes('<title>access denied</title>') && isCfServer) {
+            return 'Cloudflare access denied';
+        }
+        if (text.includes('error code: 1020')) {
+            return 'Cloudflare error 1020 (IP blocked)';
+        }
+
+        // DDoS-Guard detection (from Prowlarr)
+        if (text.includes('<title>ddos-guard</title>') || isDdosGuard) {
+            return 'DDoS-Guard block';
+        }
+
+        // Custom CF detection: Vary header + ddos in content (from Prowlarr)
+        const varyHeader = headers['vary'] || '';
+        if (varyHeader === 'Accept-Encoding,User-Agent' && text.includes('ddos')) {
+            return 'DDoS protection (custom)';
+        }
+
+        // Generic Cloudflare block (server header confirms CF)
+        if (isCfServer) {
+            return `Cloudflare block (${status})`;
+        }
+    }
+
+    // === Additional FlareSolverr-style detection ===
+    // These patterns indicate CF challenge even without 403/503
+    if (text.includes('id="cf-challenge-running"') ||
+        text.includes('id="cf-please-wait"') ||
+        text.includes('id="challenge-spinner"') ||
+        text.includes('id="turnstile-wrapper"') ||
+        text.includes('class="cf-error-title"')) {
+        return 'Cloudflare challenge page';
+    }
+
+    // === Other WAF/Protection Services ===
+    // Sucuri WAF
+    if (text.includes('sucuri') && (status === 403 || text.includes('access denied'))) {
+        return 'Sucuri WAF block';
+    }
+
+    // Akamai
+    if (text.includes('akamai') && status === 403) {
+        return 'Akamai block';
+    }
+
+    // Rate limiting
+    if (status === 429) {
+        return 'Rate limited (429)';
+    }
+
+    // Generic 403 without WAF signature
+    if (status === 403) {
+        return 'HTTP 403 Forbidden';
+    }
+
+    // 503 without protection service
+    if (status === 503) {
+        return 'Service unavailable (503)';
+    }
+
+    return null;
+}
 
 /**
  * Run health check for a single indexer (Generic Logic)
@@ -103,22 +193,70 @@ async function checkIndexer(indexerId) {
         try {
             console.log(`[HealthCheck] Testing ${indexerId}: ${testUrl}`);
 
-            const response = await axios.get(testUrl, {
-                timeout: 10000,
-                headers: {
-                    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/120.0.0.0',
-                    'Accept': checkType === 'api' ? 'application/json' : 'text/html,application/xml',
-                },
-                validateStatus: (status) => status < 500
-            });
+            // Check for cached CF session first
+            const domainHost = new URL(cleanDomain).hostname;
+            const cachedSession = await getCachedSession(domainHost);
+
+            let response;
+            if (cachedSession) {
+                console.log(`[HealthCheck] ${indexerId}: Using cached CF session`);
+                response = await requestWithCFSession(testUrl, cachedSession, axios);
+            } else {
+                response = await axios.get(testUrl, {
+                    timeout: 10000,
+                    headers: {
+                        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/120.0.0.0',
+                        'Accept': checkType === 'api' ? 'application/json' : 'text/html,application/xml',
+                    },
+                    validateStatus: (status) => status < 500
+                });
+            }
 
             const responseTime = Date.now() - startTime;
-
-            // Check for Cloudflare blocks
             const responseText = typeof response.data === 'string' ? response.data : JSON.stringify(response.data);
-            if (response.status === 403 || responseText.toLowerCase().includes('cloudflare')) {
-                console.log(`[HealthCheck] ${indexerId} (${domain}): Cloudflare blocked`);
-                lastError = 'Cloudflare blocked';
+
+            // Check for various block types (Cloudflare, WAF, rate limiting, etc.)
+            const blockType = detectBlockType(response, responseText);
+            if (blockType) {
+                console.log(`[HealthCheck] ${indexerId} (${domain}): ${blockType}`);
+
+                // Attempt CF bypass if it's a Cloudflare block
+                if (blockType.toLowerCase().includes('cloudflare')) {
+                    console.log(`[HealthCheck] ${indexerId}: Attempting CF bypass...`);
+                    try {
+                        const cfResult = await solveCFChallenge(testUrl, { timeout: 120000 });
+                        if (cfResult.success) {
+                            // Retry with CF cookies
+                            console.log(`[HealthCheck] ${indexerId}: CF solved, retrying with cookies...`);
+                            const retryResponse = await requestWithCFSession(testUrl, cfResult, axios);
+                            const retryTime = Date.now() - startTime;
+                            const retryText = typeof retryResponse.data === 'string'
+                                ? retryResponse.data
+                                : JSON.stringify(retryResponse.data);
+
+                            // Check if retry worked
+                            const retryBlockType = detectBlockType(retryResponse, retryText);
+                            if (!retryBlockType && retryText.length > 500) {
+                                console.log(`[HealthCheck] ${indexerId} (${domain}): CF BYPASS SUCCESS in ${retryTime}ms`);
+                                return {
+                                    success: true,
+                                    responseTime: retryTime,
+                                    workingDomain: domain,
+                                    error: null,
+                                    cfBypassed: true
+                                };
+                            } else {
+                                console.log(`[HealthCheck] ${indexerId}: CF bypass failed - still blocked: ${retryBlockType || 'invalid response'}`);
+                            }
+                        } else {
+                            console.log(`[HealthCheck] ${indexerId}: CF solver failed: ${cfResult.error}`);
+                        }
+                    } catch (cfError) {
+                        console.log(`[HealthCheck] ${indexerId}: CF bypass error: ${cfError.message}`);
+                    }
+                }
+
+                lastError = blockType;
                 continue; // Try next domain
             }
 
