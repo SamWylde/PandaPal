@@ -12,53 +12,73 @@ import { supabase } from './db.js';
 // Dynamic import for puppeteer to handle stealth plugin issues
 let puppeteer;
 let stealthEnabled = false;
+let chromiumExecutablePath = null;
+let initPromise = null;
 
 async function getPuppeteer() {
-    if (puppeteer) return puppeteer;
+    if (puppeteer && chromiumExecutablePath) return { puppeteer, executablePath: chromiumExecutablePath };
 
-    try {
-        // Try to use puppeteer-extra with stealth
-        const puppeteerExtra = await import('puppeteer-extra');
-        const StealthPlugin = await import('puppeteer-extra-plugin-stealth');
-        const UserPreferencesPlugin = await import('puppeteer-extra-plugin-user-preferences');
+    // Singleton lock to prevent parallel extraction race conditions (ETXTBSY on Vercel)
+    if (!initPromise) {
+        initPromise = (async () => {
+            try {
+                // Try to use puppeteer-extra with stealth
+                const puppeteerExtra = await import('puppeteer-extra');
+                const StealthPlugin = await import('puppeteer-extra-plugin-stealth');
+                const UserPreferencesPlugin = await import('puppeteer-extra-plugin-user-preferences');
+                const chromium = await import('@sparticuz/chromium');
 
-        // Ensure stealth evasion modules are available in the bundle (Vercel fix)
-        // We import these specifically because the bundler misses dynamic requires inside the plugin
-        await import('puppeteer-extra-plugin-stealth/evasions/chrome.app/index.js');
-        await import('puppeteer-extra-plugin-stealth/evasions/chrome.csi/index.js');
-        await import('puppeteer-extra-plugin-stealth/evasions/chrome.loadTimes/index.js');
-        await import('puppeteer-extra-plugin-stealth/evasions/chrome.runtime/index.js');
-        await import('puppeteer-extra-plugin-stealth/evasions/console.debug/index.js');
-        await import('puppeteer-extra-plugin-stealth/evasions/defaultArgs/index.js');
-        await import('puppeteer-extra-plugin-stealth/evasions/iframe.contentWindow/index.js');
-        await import('puppeteer-extra-plugin-stealth/evasions/media.codecs/index.js');
-        await import('puppeteer-extra-plugin-stealth/evasions/navigator.hardwareConcurrency/index.js');
-        await import('puppeteer-extra-plugin-stealth/evasions/navigator.languages/index.js');
-        await import('puppeteer-extra-plugin-stealth/evasions/navigator.permissions/index.js');
-        await import('puppeteer-extra-plugin-stealth/evasions/navigator.plugins/index.js');
-        await import('puppeteer-extra-plugin-stealth/evasions/navigator.vendor/index.js');
-        await import('puppeteer-extra-plugin-stealth/evasions/navigator.webdriver/index.js');
-        await import('puppeteer-extra-plugin-stealth/evasions/sourceurl/index.js');
-        await import('puppeteer-extra-plugin-stealth/evasions/user-agent-override/index.js');
-        await import('puppeteer-extra-plugin-stealth/evasions/webgl.vendor/index.js');
-        await import('puppeteer-extra-plugin-stealth/evasions/window.outerdimensions/index.js');
+                // Configuration for serverless
+                chromium.default.setHeadlessMode = 'shell';
+                chromium.default.setGraphicsMode = false;
 
-        puppeteer = puppeteerExtra.default;
-        puppeteer.use(StealthPlugin.default());
-        puppeteer.use(UserPreferencesPlugin.default());
+                // Ensure stealth evasion modules are available in the bundle (Vercel fix)
+                // We import these specifically because the bundler misses dynamic requires inside the plugin
+                await import('puppeteer-extra-plugin-stealth/evasions/chrome.app/index.js');
+                await import('puppeteer-extra-plugin-stealth/evasions/chrome.csi/index.js');
+                await import('puppeteer-extra-plugin-stealth/evasions/chrome.loadTimes/index.js');
+                await import('puppeteer-extra-plugin-stealth/evasions/chrome.runtime/index.js');
+                await import('puppeteer-extra-plugin-stealth/evasions/console.debug/index.js');
+                await import('puppeteer-extra-plugin-stealth/evasions/defaultArgs/index.js');
+                await import('puppeteer-extra-plugin-stealth/evasions/iframe.contentWindow/index.js');
+                await import('puppeteer-extra-plugin-stealth/evasions/media.codecs/index.js');
+                await import('puppeteer-extra-plugin-stealth/evasions/navigator.hardwareConcurrency/index.js');
+                await import('puppeteer-extra-plugin-stealth/evasions/navigator.languages/index.js');
+                await import('puppeteer-extra-plugin-stealth/evasions/navigator.permissions/index.js');
+                await import('puppeteer-extra-plugin-stealth/evasions/navigator.plugins/index.js');
+                await import('puppeteer-extra-plugin-stealth/evasions/navigator.vendor/index.js');
+                await import('puppeteer-extra-plugin-stealth/evasions/navigator.webdriver/index.js');
+                await import('puppeteer-extra-plugin-stealth/evasions/sourceurl/index.js');
+                await import('puppeteer-extra-plugin-stealth/evasions/user-agent-override/index.js');
+                await import('puppeteer-extra-plugin-stealth/evasions/webgl.vendor/index.js');
+                await import('puppeteer-extra-plugin-stealth/evasions/window.outerdimensions/index.js');
 
-        stealthEnabled = true;
-        console.log('[CFSolver] Loaded puppeteer-extra with stealth & user-preferences plugins');
-    } catch (err) {
-        // Fall back to puppeteer-core without stealth
-        console.log(`[CFSolver] Stealth plugin unavailable: ${err.message}`);
-        console.log('[CFSolver] Falling back to puppeteer-core (no stealth)');
-        const puppeteerCore = await import('puppeteer-core');
-        puppeteer = puppeteerCore.default;
-        stealthEnabled = false;
+                // Initialize plugins
+                puppeteer = puppeteerExtra.default;
+                puppeteer.use(StealthPlugin.default());
+                puppeteer.use(UserPreferencesPlugin.default());
+                stealthEnabled = true;
+
+                // CRITICAL: Get executable path ONCE here to prevent race condition during extraction
+                chromiumExecutablePath = await chromium.default.executablePath();
+
+                console.log('[CFSolver] Loaded puppeteer-extra with stealth & user-preferences plugins');
+            } catch (err) {
+                // Fall back to puppeteer-core without stealth
+                console.log(`[CFSolver] Stealth plugin unavailable: ${err.message}`);
+                console.log('[CFSolver] Falling back to puppeteer-core (no stealth)');
+                const puppeteerCore = await import('puppeteer-core');
+                const chromium = await import('@sparticuz/chromium');
+
+                puppeteer = puppeteerCore.default;
+                chromiumExecutablePath = await chromium.default.executablePath();
+                stealthEnabled = false;
+            }
+        })();
     }
 
-    return puppeteer;
+    await initPromise;
+    return { puppeteer, executablePath: chromiumExecutablePath };
 }
 
 // Supabase client (imported from db.js)
@@ -193,7 +213,7 @@ async function waitForChallengeSolved(page, timeoutMs = 60000) {
         // Check if challenge is still present
         if (!(await hasCFChallenge(page))) {
             // Wait a bit more to ensure page is fully loaded
-            await page.waitForTimeout(2000);
+            await new Promise(r => setTimeout(r, 2000));
 
             // Double-check
             if (!(await hasCFChallenge(page))) {
@@ -203,7 +223,7 @@ async function waitForChallengeSolved(page, timeoutMs = 60000) {
         }
 
         // Wait before checking again
-        await page.waitForTimeout(1000);
+        await new Promise(r => setTimeout(r, 1000));
     }
 
     return false;
@@ -243,14 +263,11 @@ export async function solveCFChallenge(url, options = {}) {
 
     try {
         // Get puppeteer instance (with or without stealth)
-        const pptr = await getPuppeteer();
+        // Returns singleton { puppeteer, executablePath }
+        const { puppeteer: pptr, executablePath } = await getPuppeteer();
 
-        // Import chromium dynamically (for serverless)
+        // Import chromium dynamically (for serverless args)
         const chromium = await import('@sparticuz/chromium');
-
-        // Configure chromium for serverless
-        chromium.default.setHeadlessMode = 'shell';
-        chromium.default.setGraphicsMode = false;
 
         console.log(`[CFSolver] Launching browser... (stealth: ${stealthEnabled})`);
 
@@ -265,7 +282,7 @@ export async function solveCFChallenge(url, options = {}) {
                 '--no-zygote'
             ],
             defaultViewport: { width: 1920, height: 1080 },
-            executablePath: await chromium.default.executablePath(),
+            executablePath: executablePath, // Use cached path
             headless: 'shell',
             timeout: 30000
         });
