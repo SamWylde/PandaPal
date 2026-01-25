@@ -97,6 +97,7 @@ async function checkIndexer(indexerId) {
     }
 
     // 3. Test each domain
+    let lastError = null;
     for (const domain of domains) {
         const startTime = Date.now();
         // Remove trailing slash from domain to avoid double slash with searchPath
@@ -121,6 +122,7 @@ async function checkIndexer(indexerId) {
             const responseText = typeof response.data === 'string' ? response.data : JSON.stringify(response.data);
             if (response.status === 403 || responseText.toLowerCase().includes('cloudflare')) {
                 console.log(`[HealthCheck] ${indexerId} (${domain}): Cloudflare blocked`);
+                lastError = 'Cloudflare blocked';
                 continue; // Try next domain
             }
 
@@ -136,6 +138,7 @@ async function checkIndexer(indexerId) {
 
             if (!isValid) {
                 console.log(`[HealthCheck] ${indexerId} (${domain}): Invalid response`);
+                lastError = 'Invalid response';
                 continue;
             }
 
@@ -149,6 +152,7 @@ async function checkIndexer(indexerId) {
 
         } catch (error) {
             console.log(`[HealthCheck] ${indexerId} (${domain}): FAILED - ${error.message}`);
+            lastError = error.message;
             // Continue to next domain
         }
     }
@@ -156,7 +160,7 @@ async function checkIndexer(indexerId) {
     return {
         success: false,
         responseTime: 0,
-        error: 'All domains failed',
+        error: lastError || 'All domains failed',
         workingDomain: null
     };
 }
@@ -249,7 +253,8 @@ async function updateHealthMetrics(indexerId, success, responseTime, workingDoma
         if (upsertError) {
             console.error(`[HealthCheck] Failed DB update for ${indexerId}: ${upsertError.message}`);
         } else {
-            console.log(`[HealthCheck] Updated ${indexerId}: success=${success}, priority=${priority}`);
+            const errorSuffix = success ? '' : `, error=${error || 'unknown'}`;
+            console.log(`[HealthCheck] Updated ${indexerId}: success=${success}, priority=${priority}${errorSuffix}`);
         }
 
     } catch (err) {
