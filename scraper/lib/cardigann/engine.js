@@ -76,10 +76,14 @@ export class CardigannEngine {
      * Execute search against a single domain
      */
     async executeSearch(domain, searchConfig, query, definition, options) {
-        const baseUrl = domain.startsWith('http') ? domain : `https://${domain}`;
+        // Clean domain: remove comments (e.g., "http://site.com # comment") and trailing slashes
+        let cleanDomain = domain.split('#')[0].trim().replace(/\/+$/, '');
+        const baseUrl = cleanDomain.startsWith('http') ? cleanDomain : `https://${cleanDomain}`;
 
         // Build search URL
-        const searchPath = this.resolveSearchPath(searchConfig.paths, query, options);
+        let searchPath = this.resolveSearchPath(searchConfig.paths, query, options);
+        // Ensure path starts with / and doesn't have double slashes
+        searchPath = '/' + searchPath.replace(/^\/+/, '').replace(/\/+/g, '/');
         const searchUrl = `${baseUrl}${searchPath}`;
 
         // Build query parameters
@@ -136,12 +140,12 @@ export class CardigannEngine {
     }
 
     /**
-     * Replace Cardigann template variables
+     * Replace Cardigann template variables and evaluate conditionals
      */
     replaceTemplateVars(template, query, options = {}) {
         let result = template;
 
-        // Query variables
+        // Query variables and their values for both replacement and conditional evaluation
         const vars = {
             '.Query.Q': query,
             '.Query.q': query,
@@ -152,12 +156,33 @@ export class CardigannEngine {
             '.Query.Season': options.season || '',
             '.Query.Episode': options.episode || '',
             '.Query.Year': options.year || '',
-            '.Today.Year': new Date().getFullYear().toString()
+            '.Today.Year': new Date().getFullYear().toString(),
+            '.Config.sort': '',  // Default config values
+            '.Config.category': ''
         };
 
+        // First, handle {{ if .Var }}...{{ else }}...{{ end }} conditionals
+        // Pattern matches: {{ if .VarName }}truthy content{{ else }}falsy content{{ end }}
+        const ifElsePattern = /\{\{\s*if\s+(\.[^\s}]+)\s*\}\}([\s\S]*?)\{\{\s*else\s*\}\}([\s\S]*?)\{\{\s*end\s*\}\}/gi;
+        result = result.replace(ifElsePattern, (match, varName, truthyContent, falsyContent) => {
+            const value = vars[varName];
+            const isTruthy = value !== undefined && value !== null && value !== '';
+            return isTruthy ? truthyContent : falsyContent;
+        });
+
+        // Handle {{ if .Var }}...{{ end }} (no else clause)
+        const ifOnlyPattern = /\{\{\s*if\s+(\.[^\s}]+)\s*\}\}([\s\S]*?)\{\{\s*end\s*\}\}/gi;
+        result = result.replace(ifOnlyPattern, (match, varName, content) => {
+            const value = vars[varName];
+            const isTruthy = value !== undefined && value !== null && value !== '';
+            return isTruthy ? content : '';
+        });
+
+        // Then replace simple variables
         for (const [varName, varValue] of Object.entries(vars)) {
             // Handle both {{ .Var }} and {{.Var}} formats
-            result = result.replace(new RegExp(`\\{\\{\\s*${varName.replace('.', '\\.')}\\s*\\}\\}`, 'g'), varValue);
+            const escapedVarName = varName.replace(/\./g, '\\.');
+            result = result.replace(new RegExp(`\\{\\{\\s*${escapedVarName}\\s*\\}\\}`, 'g'), varValue);
         }
 
         return result;
