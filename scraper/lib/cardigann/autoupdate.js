@@ -72,81 +72,65 @@ export async function autoUpdateDomains(options = {}) {
         errors: []
     };
 
-    for (const [indexerId, config] of Object.entries(SCRAPER_FILE_MAP)) {
-        try {
-            // Parse full definition from YAML
-            // We get definition from file path now, or better:
-            // sync.sync() creates the files. We should read them.
-            // But wait, sync.js logic saves .yml to cacheDir.
-            // We need to read that .yml file here.
+    // Iterate over ALL synced indexers to update Supabase
+    // (Map provides legacy file support, but we want DB to have everything)
+    const allIndexers = Object.keys(metadata.indexers);
+    log(`[AutoUpdate] Processing ${allIndexers.length} indexers...`);
 
-            // Actually, we can just read the synced file
+    for (const indexerId of allIndexers) {
+        try {
+            // Get definition
             const syncedDefinition = await sync.getDefinition(indexerId);
-            if (!syncedDefinition) {
-                log(`[AutoUpdate] ⚠️ ${indexerId}: Synced definition not found?`);
-                continue;
-            }
+            if (!syncedDefinition) continue;
 
             // Parse it
             const fullConfig = parseCardigannYaml(syncedDefinition);
             const newDomains = extractDomains(fullConfig);
 
             if (newDomains.length === 0) {
-                log(`[AutoUpdate] ⚠️  ${indexerId}: No domains found in definition, skipping`);
+                // Skip silence to reduce noise
                 continue;
             }
 
-            // Read current file
-            const fileContent = await fs.readFile(config.file, 'utf-8');
-
-            // Extract current domains from file
-            const currentDomains = extractDomainsFromFile(fileContent, config.varName);
-
-            // Check if update needed (based on domains for now, preserving log noise)
-            const needsUpdate = !arraysEqual(currentDomains, newDomains);
-
-            if (!needsUpdate) {
-                log(`[AutoUpdate] ✅ ${indexerId}: Already up to date (${currentDomains.length} domains)`);
-                results.unchanged.push(indexerId);
-                // Still upsert to DB if it's missing or if we want to ensure latest config is there
-                // For simplicity, we only skip if we are 100% sure DB is fresh.
-                // But honestly, saving to DB is cheap. Let's do it if we are this deep in logic.
-                // Actually, let's stick to "if needsUpdate" OR "if forced".
-                // But wait, if local file is up to date, it doesn't mean DB is.
-                // Let's force save to DB if running in cron? 
-                // No, let's keep logic: if domains changed, update everywhere.
-                // BUT: if this is a fresh deployment, local file might be old while Prowlarr is new.
-                // "needsUpdate" compares Prowlarr domains vs Local File domains.
-                // So if Prowlarr has new domains, we proceed.
-                if (!process.env.FORCE_DB_UPDATE) continue;
-            }
-
-            log(`[AutoUpdate] 🔄 ${indexerId}: Updating domains`);
-            log(`[AutoUpdate]    Old: ${currentDomains.slice(0, 3).join(', ')}${currentDomains.length > 3 ? '...' : ''}`);
-            log(`[AutoUpdate]    New: ${newDomains.slice(0, 3).join(', ')}${newDomains.length > 3 ? '...' : ''}`);
-
-            if (dryRun) {
-                log(`[AutoUpdate]    (dry run - not writing)`);
+            // 1. Update Supabase (ALWAYS)
+            // We do this for everyone, not just the mapped ones
+            if (!dryRun) {
+                const dbSuccess = await saveScraperConfig(indexerId, fullConfig);
+                if (dbSuccess) {
+                    // Check if this was an update or new
+                    // For now just assume it worked.
+                    // To be cleaner we could check if domains changed but that requires fetching old config from DB.
+                    // Upsert is cheap enough.
+                } else {
+                    results.errors.push({ indexerId, error: "Supabase save failed" });
+                }
+            } else {
                 results.updated.push({ indexerId, dryRun: true, domains: newDomains });
-                continue;
             }
 
-            // 1. Update Supabase (Full Config)
-            log(`[AutoUpdate]    Saving config to Supabase...`);
-            const dbSuccess = await saveScraperConfig(indexerId, fullConfig);
-            if (!dbSuccess) {
-                log(`[AutoUpdate]    ⚠️ Failed to save to Supabase`);
-            }
+            // 2. Update Local File (Legacy/Mapped Only)
+            if (SCRAPER_FILE_MAP[indexerId]) {
+                const config = SCRAPER_FILE_MAP[indexerId];
 
-            // 2. Update Local File (Legacy Domain List support)
-            if (!process.env.VERCEL) {
-                const updatedContent = updateDomainsInFile(fileContent, config.varName, newDomains, indexerId);
-                await fs.writeFile(config.file, updatedContent);
-                log(`[AutoUpdate]    Updated local file.`);
-            }
+                // Read current file
+                const fileContent = await fs.readFile(config.file, 'utf-8');
+                const currentDomains = extractDomainsFromFile(fileContent, config.varName);
+                const needsUpdate = !arraysEqual(currentDomains, newDomains);
 
-            log(`[AutoUpdate] ✅ ${indexerId}: Updated to ${newDomains.length} domains`);
-            results.updated.push({ indexerId, domains: newDomains });
+                if (needsUpdate) {
+                    log(`[AutoUpdate] 🔄 ${indexerId}: Updating local file domains`);
+                    if (!dryRun && !process.env.VERCEL) {
+                        const updatedContent = updateDomainsInFile(fileContent, config.varName, newDomains, indexerId);
+                        await fs.writeFile(config.file, updatedContent);
+                        results.updated.push({ indexerId, domains: newDomains });
+                    }
+                } else {
+                    results.unchanged.push(indexerId);
+                }
+            } else {
+                // Count as updated/processed for stats
+                results.updated.push({ indexerId, domains: newDomains, dbOnly: true });
+            }
 
         } catch (error) {
             log(`[AutoUpdate] ❌ ${indexerId}: Error - ${error.message}`);
