@@ -34,24 +34,29 @@ async function getPuppeteer() {
 
                 // Ensure stealth evasion modules are available in the bundle (Vercel fix)
                 // We import these specifically because the bundler misses dynamic requires inside the plugin
-                await import('puppeteer-extra-plugin-stealth/evasions/chrome.app/index.js');
-                await import('puppeteer-extra-plugin-stealth/evasions/chrome.csi/index.js');
-                await import('puppeteer-extra-plugin-stealth/evasions/chrome.loadTimes/index.js');
-                await import('puppeteer-extra-plugin-stealth/evasions/chrome.runtime/index.js');
-                await import('puppeteer-extra-plugin-stealth/evasions/console.debug/index.js');
-                await import('puppeteer-extra-plugin-stealth/evasions/defaultArgs/index.js');
-                await import('puppeteer-extra-plugin-stealth/evasions/iframe.contentWindow/index.js');
-                await import('puppeteer-extra-plugin-stealth/evasions/media.codecs/index.js');
-                await import('puppeteer-extra-plugin-stealth/evasions/navigator.hardwareConcurrency/index.js');
-                await import('puppeteer-extra-plugin-stealth/evasions/navigator.languages/index.js');
-                await import('puppeteer-extra-plugin-stealth/evasions/navigator.permissions/index.js');
-                await import('puppeteer-extra-plugin-stealth/evasions/navigator.plugins/index.js');
-                await import('puppeteer-extra-plugin-stealth/evasions/navigator.vendor/index.js');
-                await import('puppeteer-extra-plugin-stealth/evasions/navigator.webdriver/index.js');
-                await import('puppeteer-extra-plugin-stealth/evasions/sourceurl/index.js');
-                await import('puppeteer-extra-plugin-stealth/evasions/user-agent-override/index.js');
-                await import('puppeteer-extra-plugin-stealth/evasions/webgl.vendor/index.js');
-                await import('puppeteer-extra-plugin-stealth/evasions/window.outerdimensions/index.js');
+                // Wrapped in try/catch to ensure we don't crash if Vercel treeshakes them differently
+                try {
+                    await import('puppeteer-extra-plugin-stealth/evasions/chrome.app/index.js');
+                    await import('puppeteer-extra-plugin-stealth/evasions/chrome.csi/index.js');
+                    await import('puppeteer-extra-plugin-stealth/evasions/chrome.loadTimes/index.js');
+                    await import('puppeteer-extra-plugin-stealth/evasions/chrome.runtime/index.js');
+                    await import('puppeteer-extra-plugin-stealth/evasions/console.debug/index.js');
+                    await import('puppeteer-extra-plugin-stealth/evasions/defaultArgs/index.js');
+                    await import('puppeteer-extra-plugin-stealth/evasions/iframe.contentWindow/index.js');
+                    await import('puppeteer-extra-plugin-stealth/evasions/media.codecs/index.js');
+                    await import('puppeteer-extra-plugin-stealth/evasions/navigator.hardwareConcurrency/index.js');
+                    await import('puppeteer-extra-plugin-stealth/evasions/navigator.languages/index.js');
+                    await import('puppeteer-extra-plugin-stealth/evasions/navigator.permissions/index.js');
+                    await import('puppeteer-extra-plugin-stealth/evasions/navigator.plugins/index.js');
+                    await import('puppeteer-extra-plugin-stealth/evasions/navigator.vendor/index.js');
+                    await import('puppeteer-extra-plugin-stealth/evasions/navigator.webdriver/index.js');
+                    await import('puppeteer-extra-plugin-stealth/evasions/sourceurl/index.js');
+                    await import('puppeteer-extra-plugin-stealth/evasions/user-agent-override/index.js');
+                    await import('puppeteer-extra-plugin-stealth/evasions/webgl.vendor/index.js');
+                    await import('puppeteer-extra-plugin-stealth/evasions/window.outerdimensions/index.js');
+                } catch (importErr) {
+                    console.warn('[CFSolver] Stealth evasions could not be pre-loaded, continuing anyway...');
+                }
 
                 // Initialize plugins
                 puppeteer = puppeteerExtra.default;
@@ -65,8 +70,9 @@ async function getPuppeteer() {
                 console.log('[CFSolver] Loaded puppeteer-extra with stealth & user-preferences plugins');
             } catch (err) {
                 // Fall back to puppeteer-core without stealth
-                console.log(`[CFSolver] Stealth plugin unavailable: ${err.message}`);
-                console.log('[CFSolver] Falling back to puppeteer-core (no stealth)');
+                console.warn(`[CFSolver] Stealth plugin init failed: ${err.message}`);
+                console.warn('[CFSolver] Falling back to puppeteer-core (standard mode)');
+
                 const puppeteerCore = await import('puppeteer-core');
                 const chromium = await import('@sparticuz/chromium');
 
