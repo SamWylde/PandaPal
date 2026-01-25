@@ -20,17 +20,28 @@ export class CardigannEngine {
     /**
      * Execute a search using a Cardigann definition
      * @param {string|Object} yamlContentOrParsed - Either raw YAML string or already-parsed definition object
+     * @param {string} options.workingDomain - Known working domain from health check (prioritized)
      */
     async search(yamlContentOrParsed, query, options = {}) {
         // Support both raw YAML strings (from file/sync) and pre-parsed objects (from database)
         const definition = typeof yamlContentOrParsed === 'string'
             ? parseCardigannYaml(yamlContentOrParsed)
             : yamlContentOrParsed;
-        const domains = extractDomains(definition);
+        let domains = extractDomains(definition);
         const searchConfig = extractSearchConfig(definition);
 
         const indexerId = definition.id || 'unknown';
         const errors = [];
+        const emptyDomains = []; // Track domains that returned 0 results (not errors)
+
+        // OPTIMIZATION: If we have a known working domain from health check, try it first
+        // This dramatically reduces failed requests during real-time search
+        if (options.workingDomain) {
+            const workingDomain = options.workingDomain;
+            // Move working domain to the front of the list
+            domains = [workingDomain, ...domains.filter(d => d !== workingDomain)];
+            console.log(`[Cardigann:${indexerId}] Prioritizing known working domain: ${workingDomain}`);
+        }
 
         console.log(`[Cardigann:${indexerId}] Starting search with ${domains.length} domains`);
 
@@ -54,6 +65,9 @@ export class CardigannEngine {
                         indexer: indexerId
                     };
                 }
+
+                // Domain returned successfully but with 0 results
+                emptyDomains.push(domain);
             } catch (error) {
                 const errorInfo = this.formatError(error, domain);
                 errors.push(errorInfo);
@@ -61,13 +75,22 @@ export class CardigannEngine {
             }
         }
 
-        console.error(`[Cardigann:${indexerId}] All domains exhausted`);
-        console.error(`[Cardigann:${indexerId}] Error details: ${JSON.stringify(errors, null, 2)}`);
+        // Summarize what happened
+        const summary = [];
+        if (errors.length > 0) {
+            summary.push(`${errors.length} failed (${errors.map(e => e.message).join(', ')})`);
+        }
+        if (emptyDomains.length > 0) {
+            summary.push(`${emptyDomains.length} returned empty results`);
+        }
+
+        console.error(`[Cardigann:${indexerId}] All ${domains.length} domains exhausted: ${summary.join('; ') || 'no details'}`);
 
         return {
             success: false,
             results: [],
             errors,
+            emptyDomains,
             indexer: indexerId
         };
     }
@@ -204,9 +227,13 @@ export class CardigannEngine {
 
     /**
      * Fetch with retry logic
+     * Only retries on network errors, NOT on HTTP 4xx/5xx errors (which are explicit denials)
      */
     async fetchWithRetry(url, params, definition) {
         let lastError;
+
+        // HTTP status codes that should NOT be retried (explicit denials/blocks)
+        const NON_RETRYABLE_STATUS = [403, 401, 429, 451, 503];
 
         for (let attempt = 1; attempt <= this.retries + 1; attempt++) {
             try {
@@ -225,20 +252,32 @@ export class CardigannEngine {
                     validateStatus: status => status >= 200 && status < 500
                 });
 
+                // Check for non-200 status codes
                 if (response.status !== 200) {
-                    throw new Error(`HTTP ${response.status}`);
+                    const error = new Error(`HTTP ${response.status}`);
+                    error.isNonRetryable = NON_RETRYABLE_STATUS.includes(response.status);
+                    error.status = response.status;
+                    throw error;
                 }
 
                 // Check for Cloudflare challenge
                 const responseText = typeof response.data === 'string' ? response.data.toLowerCase() : '';
                 if (responseText.includes('cloudflare') && responseText.includes('challenge')) {
-                    throw new Error('Cloudflare challenge detected');
+                    const error = new Error('Cloudflare challenge detected');
+                    error.isNonRetryable = true; // CF challenges won't succeed with retry
+                    throw error;
                 }
 
                 return response;
             } catch (error) {
                 lastError = error;
 
+                // Don't retry non-retryable errors (403, 429, CF blocks, etc.)
+                if (error.isNonRetryable) {
+                    throw error;
+                }
+
+                // Only retry on network/transient errors
                 if (attempt <= this.retries) {
                     const delay = 1000 * Math.pow(2, attempt - 1);
                     console.log(`[Cardigann] Attempt ${attempt}/${this.retries + 1} failed, retrying in ${delay}ms...`);
@@ -467,12 +506,22 @@ export class CardigannEngine {
         const details = {
             domain,
             message: error.message,
-            code: error.code || 'UNKNOWN'
+            code: error.code || (error.status ? `HTTP_${error.status}` : 'UNKNOWN')
         };
+
+        // Include HTTP status if available
+        if (error.status) {
+            details.status = error.status;
+        }
 
         if (error.response) {
             details.status = error.response.status;
             details.statusText = error.response.statusText;
+        }
+
+        // Mark if this was a non-retryable error (403, CF block, etc.)
+        if (error.isNonRetryable) {
+            details.nonRetryable = true;
         }
 
         return details;
