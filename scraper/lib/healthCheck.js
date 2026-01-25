@@ -390,8 +390,8 @@ export async function runHealthChecks() {
         console.log('[HealthCheck] Syncing definitions & updating DB...');
         await withTimeout(
             autoUpdateDomains({ dryRun: false, verbose: false }),
-            30000, // 30 second timeout for GitHub sync (network can be slow)
-            'Definition sync timed out after 30s'
+            60000, // 60 second timeout - sync takes ~16s + DB saves for 95+ indexers
+            'Definition sync timed out after 60s'
         );
     } catch (syncError) {
         console.error(`[HealthCheck] Failed to sync definitions: ${syncError.message}`);
