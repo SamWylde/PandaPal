@@ -10,6 +10,7 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import { DefinitionSync } from './sync.js';
 import { saveScraperConfig } from '../../db.js';
+import { parseCardigannYaml, extractDomains } from './parser.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -66,17 +67,27 @@ export async function autoUpdateDomains(options = {}) {
 
     for (const [indexerId, config] of Object.entries(SCRAPER_FILE_MAP)) {
         try {
-            const prowlarrDomains = metadata.indexers[indexerId]?.links || [];
+            // Parse full definition from YAML
+            // We get definition from file path now, or better:
+            // sync.sync() creates the files. We should read them.
+            // But wait, sync.js logic saves .yml to cacheDir.
+            // We need to read that .yml file here.
 
-            if (prowlarrDomains.length === 0) {
-                log(`[AutoUpdate] ⚠️  ${indexerId}: No domains in Prowlarr, skipping`);
+            // Actually, we can just read the synced file
+            const syncedDefinition = await sync.getDefinition(indexerId);
+            if (!syncedDefinition) {
+                log(`[AutoUpdate] ⚠️ ${indexerId}: Synced definition not found?`);
                 continue;
             }
 
-            // Transform domains (e.g., add /api/v2 for YTS)
-            const newDomains = prowlarrDomains
-                .map(d => config.transformDomain(d))
-                .filter(d => d); // Remove any nulls
+            // Parse it
+            const fullConfig = parseCardigannYaml(syncedDefinition);
+            const newDomains = extractDomains(fullConfig);
+
+            if (newDomains.length === 0) {
+                log(`[AutoUpdate] ⚠️  ${indexerId}: No domains found in definition, skipping`);
+                continue;
+            }
 
             // Read current file
             const fileContent = await fs.readFile(config.file, 'utf-8');
@@ -84,21 +95,23 @@ export async function autoUpdateDomains(options = {}) {
             // Extract current domains from file
             const currentDomains = extractDomainsFromFile(fileContent, config.varName);
 
-            // Check if update needed
+            // Check if update needed (based on domains for now, preserving log noise)
             const needsUpdate = !arraysEqual(currentDomains, newDomains);
 
             if (!needsUpdate) {
                 log(`[AutoUpdate] ✅ ${indexerId}: Already up to date (${currentDomains.length} domains)`);
                 results.unchanged.push(indexerId);
-                // Even if file is up to date, we might want to ensure DB is synced? 
-                // For now, let's assume if file matches prowlarr, we are good.
-                // But if running on Vercel, the file might be the hardcoded stale version.
-                // So we should probably check against DB or just upsert anyway if Vercel?
-                // Efficient route: Just upsert if changed.
-
-                // On Vercel, we can't trust the file content to represent "current state" of the DB.
-                // But for now, we follow the logic: Prowlarr has truth.
-                continue;
+                // Still upsert to DB if it's missing or if we want to ensure latest config is there
+                // For simplicity, we only skip if we are 100% sure DB is fresh.
+                // But honestly, saving to DB is cheap. Let's do it if we are this deep in logic.
+                // Actually, let's stick to "if needsUpdate" OR "if forced".
+                // But wait, if local file is up to date, it doesn't mean DB is.
+                // Let's force save to DB if running in cron? 
+                // No, let's keep logic: if domains changed, update everywhere.
+                // BUT: if this is a fresh deployment, local file might be old while Prowlarr is new.
+                // "needsUpdate" compares Prowlarr domains vs Local File domains.
+                // So if Prowlarr has new domains, we proceed.
+                if (!process.env.FORCE_DB_UPDATE) continue;
             }
 
             log(`[AutoUpdate] 🔄 ${indexerId}: Updating domains`);
@@ -111,16 +124,14 @@ export async function autoUpdateDomains(options = {}) {
                 continue;
             }
 
-            // 1. Update Supabase (Persistent Source of Truth)
-            log(`[AutoUpdate]    Saving to Supabase...`);
-            const dbSuccess = await saveScraperConfig(indexerId, newDomains);
+            // 1. Update Supabase (Full Config)
+            log(`[AutoUpdate]    Saving config to Supabase...`);
+            const dbSuccess = await saveScraperConfig(indexerId, fullConfig);
             if (!dbSuccess) {
                 log(`[AutoUpdate]    ⚠️ Failed to save to Supabase`);
             }
 
-            // 2. Update Local File (if not on Vercel or explicitly desired)
-            // On Vercel, this throws EROFS usually, or is just useless. 
-            // We skip file write on Vercel unless we want to try (it might work in tmp but useless)
+            // 2. Update Local File (Legacy Domain List support)
             if (!process.env.VERCEL) {
                 const updatedContent = updateDomainsInFile(fileContent, config.varName, newDomains, indexerId);
                 await fs.writeFile(config.file, updatedContent);

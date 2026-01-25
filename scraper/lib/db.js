@@ -19,7 +19,7 @@ export async function getScraperConfig(scraperId) {
     try {
         const { data, error } = await supabase
             .from('scraper_configurations')
-            .select('domains, updated_at')
+            .select('config, updated_at')
             .eq('id', scraperId)
             .single();
 
@@ -31,7 +31,8 @@ export async function getScraperConfig(scraperId) {
             return null;
         }
 
-        return data;
+        // Return the parsed config object (supabase returns the row, we want the config column)
+        return data.config;
     } catch (err) {
         console.error(`[DB] Error fetching config for ${scraperId}:`, err.message);
         return null;
@@ -41,10 +42,10 @@ export async function getScraperConfig(scraperId) {
 /**
  * Save configuration for a scraper
  * @param {string} scraperId 
- * @param {Array<string>} domains 
+ * @param {Object} configData 
  * @returns {Promise<boolean>} Success status
  */
-export async function saveScraperConfig(scraperId, domains) {
+export async function saveScraperConfig(scraperId, configData) {
     if (!supabase) {
         console.warn('[DB] Supabase credentials missing. Cannot save config.');
         return false;
@@ -55,7 +56,7 @@ export async function saveScraperConfig(scraperId, domains) {
             .from('scraper_configurations')
             .upsert({
                 id: scraperId,
-                domains: domains,
+                config: configData,
                 updated_at: new Date().toISOString()
             }, { onConflict: 'id' });
 

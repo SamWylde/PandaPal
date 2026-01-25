@@ -18,8 +18,8 @@ async function getDomains() {
 
     try {
         const config = await getScraperConfig('1337x');
-        if (config && config.domains && Array.isArray(config.domains) && config.domains.length > 0) {
-            cachedDomains = config.domains;
+        if (config && config.links && Array.isArray(config.links) && config.links.length > 0) {
+            cachedDomains = config.links; // In full config, domains are in 'links'
             console.log(`[1337x] Loaded ${cachedDomains.length} domains from DB`);
         } else {
             cachedDomains = T1337X_FALLBACK;

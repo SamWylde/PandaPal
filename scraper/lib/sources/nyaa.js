@@ -10,8 +10,8 @@ async function getDomains() {
 
     try {
         const config = await getScraperConfig('nyaasi');
-        if (config && config.domains && Array.isArray(config.domains) && config.domains.length > 0) {
-            cachedDomains = config.domains;
+        if (config && config.links && Array.isArray(config.links) && config.links.length > 0) {
+            cachedDomains = config.links;
             console.log(`[Nyaa] Loaded ${cachedDomains.length} domains from DB`);
         } else {
             cachedDomains = NYAA_FALLBACK;
