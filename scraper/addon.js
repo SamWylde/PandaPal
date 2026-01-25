@@ -91,7 +91,9 @@ async function streamHandler(args) {
     type: args.type,
     season,
     episode,
-    title: args.extra?.name // Fallback title for anime
+    title: args.extra?.name, // Fallback title for anime
+    providers: args.extra?.providers, // User-selected providers (or 'smart')
+    config: args.extra // Full config for additional options
   });
 
   // 3. Deduplicate
