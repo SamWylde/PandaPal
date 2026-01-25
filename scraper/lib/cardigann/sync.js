@@ -27,31 +27,26 @@ const CACHE_DIR = isLambda
 const METADATA_FILE = path.join(CACHE_DIR, '_metadata.json');
 
 // Public indexers we're interested in (no login required)
+// Names must match EXACT file names in Prowlarr/Indexers repo (without .yml)
 const PUBLIC_INDEXERS = [
+    // General public trackers
     '1337x',
     'yts',
     'thepiratebay',
-    'kickasstorrents',
+    'kickasstorrents-to',
+    'kickasstorrents-ws',
     'limetorrents',
     'torrentdownloads',
-    'torlock',
-    'glodls',
-    'magnetdl',
-    'bt4gprx',
     'bitsearch',
-    'solidtorrents',
     'torrentproject2',
-    'torrentscsv',
+    'torrentgalaxyclone',      // Note: torrentgalaxy is named torrentgalaxyclone in Prowlarr
+    'isohunt2',
+    'torrent9',
     // Anime
     'nyaasi',
     'tokyotosho',
-    'anidex',
-    'subsplease',
     // TV-focused
-    'eztv',
-    'ettv',
-    'torrentgalaxy',
-    'knaben'
+    'eztv'
 ];
 
 export class DefinitionSync {

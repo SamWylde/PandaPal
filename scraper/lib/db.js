@@ -8,6 +8,15 @@ const supabase = (supabaseUrl && supabaseKey)
     ? createClient(supabaseUrl, supabaseKey)
     : null;
 
+// Map our local scraper IDs to Prowlarr indexer IDs
+// Our scrapers may have different names than Prowlarr uses
+const SCRAPER_TO_PROWLARR_MAP = {
+    'torrentgalaxy': 'torrentgalaxyclone',  // Prowlarr uses 'torrentgalaxyclone'
+    'nyaa': 'nyaasi',                        // We call it nyaa, Prowlarr calls it nyaasi
+    'solidtorrents': 'solidtorrents',        // Not in Prowlarr, will return null
+    // Others match directly: yts, 1337x, eztv, bitsearch
+};
+
 /**
  * Get configuration for a specific scraper
  * @param {string} scraperId - ID of the scraper (e.g., '1337x', 'yts')
@@ -16,11 +25,14 @@ const supabase = (supabaseUrl && supabaseKey)
 export async function getScraperConfig(scraperId) {
     if (!supabase) return null;
 
+    // Map local scraper ID to Prowlarr ID
+    const prowlarrId = SCRAPER_TO_PROWLARR_MAP[scraperId] || scraperId;
+
     try {
         const { data, error } = await supabase
             .from('scraper_configurations')
             .select('config, updated_at')
-            .eq('id', scraperId)
+            .eq('id', prowlarrId)
             .single();
 
         if (error) {
