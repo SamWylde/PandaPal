@@ -18,6 +18,7 @@ const TEST_IMDB_ID = 'tt1375666';
 const TEST_TITLE = 'Inception';
 
 // Public indexers only - NO private/login-required indexers
+// IDs must match Prowlarr indexer IDs (used for DB lookup)
 const PUBLIC_INDEXERS = {
     'yts': {
         testUrl: (domain) => `${domain}/list_movies.json?query_term=${TEST_IMDB_ID}`,
@@ -34,7 +35,7 @@ const PUBLIC_INDEXERS = {
         validateResponse: (html) => html?.includes('table') || html?.includes('torrent'),
         type: 'html'
     },
-    'torrentgalaxy': {
+    'torrentgalaxyclone': {  // Prowlarr name for TorrentGalaxy
         testUrl: (domain) => `${domain}/torrents.php?search=${TEST_IMDB_ID}`,
         validateResponse: (html) => html?.includes('tgxtablerow') || html?.includes('torrent'),
         type: 'html'
@@ -49,9 +50,19 @@ const PUBLIC_INDEXERS = {
         validateResponse: (html) => html?.includes('search-result') || html?.includes('torrent'),
         type: 'html'
     },
-    'solidtorrents': {
-        testUrl: (domain) => `${domain}/search?q=${TEST_TITLE}`,
-        validateResponse: (html) => html?.includes('search-result') || html?.includes('torrent'),
+    'thepiratebay': {
+        testUrl: (domain) => `${domain}/search/${TEST_TITLE}/1/99/0`,
+        validateResponse: (html) => html?.includes('detName') || html?.includes('torrent'),
+        type: 'html'
+    },
+    'limetorrents': {
+        testUrl: (domain) => `${domain}/search/all/${TEST_TITLE}/`,
+        validateResponse: (html) => html?.includes('torrent') || html?.includes('magnet'),
+        type: 'html'
+    },
+    'torrentdownloads': {
+        testUrl: (domain) => `${domain}/search/?search=${TEST_TITLE}`,
+        validateResponse: (html) => html?.includes('torrent') || html?.includes('magnet'),
         type: 'html'
     }
 };

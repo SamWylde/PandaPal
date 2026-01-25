@@ -15,7 +15,8 @@ import { parseCardigannYaml, extractDomains } from './parser.js';
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 // Map of indexer IDs to their scraper file info
-// Note: Variable names must match actual constants in source files (*_FALLBACK)
+// Note: Prowlarr names may differ from our local file names
+// Key = Prowlarr indexer ID, value = local scraper config
 const SCRAPER_FILE_MAP = {
     'yts': {
         file: path.join(__dirname, '../sources/yts.js'),
@@ -27,7 +28,7 @@ const SCRAPER_FILE_MAP = {
         varName: 'T1337X_FALLBACK',
         transformDomain: (d) => d
     },
-    'torrentgalaxy': {
+    'torrentgalaxyclone': {  // Prowlarr uses 'torrentgalaxyclone', we have torrentgalaxy.js
         file: path.join(__dirname, '../sources/torrentgalaxy.js'),
         varName: 'TG_FALLBACK',
         transformDomain: (d) => d
@@ -40,6 +41,11 @@ const SCRAPER_FILE_MAP = {
     'nyaasi': {
         file: path.join(__dirname, '../sources/nyaa.js'),
         varName: 'NYAA_FALLBACK',
+        transformDomain: (d) => d
+    },
+    'bitsearch': {
+        file: path.join(__dirname, '../sources/bitsearch.js'),
+        varName: 'BITSEARCH_FALLBACK',
         transformDomain: (d) => d
     }
 };
