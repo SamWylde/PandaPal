@@ -173,31 +173,43 @@ async function searchWithPriority(params, indexers) {
     const fastIndexers = sortedIndexers.filter(idx => idx.priority > 60).slice(0, 8);
     const slowIndexers = sortedIndexers.filter(idx => idx.priority <= 60).slice(0, 10);
 
-    // Run fast tier
+    // PARALLEL EXECUTION: Fast Tier + Custom Scrapers
+    // This ensures we get high-quality results from popular indexers AND specialty results from custom ones
+    // without one blocking the other or race conditions causing data loss.
+    const initialPromises = [];
+
+    // 1. Fast Tier
     if (fastIndexers.length > 0) {
         console.log(`[RealTime] Fast tier: ${fastIndexers.map(i => i.id).join(', ')}`);
-        const fastResults = await searchIndexerBatch(fastIndexers, params);
-        allResults.push(...fastResults);
-
-        // Return early if we have good results
-        if (fastResults.length >= 10) {
-            console.log(`[RealTime] Fast tier returned ${fastResults.length} results, skipping slow tier`);
-            // Still add custom scrapers in background
-            addCustomScrapersAsync(params, allResults);
-            return allResults;
-        }
+        initialPromises.push(searchIndexerBatch(fastIndexers, params));
     }
 
-    // Run slow tier
+    // 2. Custom Scrapers (Always run these)
+    initialPromises.push(runCustomScrapers(params));
+
+    // Wait for both to finish
+    const [fastResults, customResults] = await Promise.all(
+        initialPromises.map(p => p.catch(e => [])) // Catch individual errors so Promise.all doesn't fail
+    );
+
+    if (fastResults && fastResults.length > 0) allResults.push(...fastResults);
+    if (customResults && customResults.length > 0) allResults.push(...customResults);
+
+    // Check if we need more results
+    const totalSoFar = allResults.length;
+    console.log(`[RealTime] Initial batch yielded ${totalSoFar} results`);
+
+    if (totalSoFar >= 10) {
+        console.log(`[RealTime] Sufficient results found, skipping slow tier`);
+        return allResults;
+    }
+
+    // Run slow tier if needed
     if (slowIndexers.length > 0) {
         console.log(`[RealTime] Slow tier: ${slowIndexers.map(i => i.id).join(', ')}`);
         const slowResults = await searchIndexerBatch(slowIndexers, params);
         allResults.push(...slowResults);
     }
-
-    // Always run custom scrapers (solidtorrents, etc.)
-    const customResults = await runCustomScrapers(params);
-    allResults.push(...customResults);
 
     console.log(`[RealTime] Total results: ${allResults.length}`);
     return allResults;
@@ -317,18 +329,7 @@ async function runCustomScrapers(params) {
         .flatMap(r => r.value || []);
 }
 
-/**
- * Add custom scrapers asynchronously (non-blocking)
- */
-function addCustomScrapersAsync(params, resultsArray) {
-    runCustomScrapers(params)
-        .then(results => {
-            resultsArray.push(...results);
-        })
-        .catch(err => {
-            console.log(`[RealTime] Custom scrapers error: ${err.message}`);
-        });
-}
+
 
 /**
  * Legacy tiered search (fallback when no health data)

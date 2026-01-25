@@ -14,10 +14,6 @@
             "schedule": "0 3 * * *"
         },
         {
-            "path": "/api/cron/update-domains",
-            "schedule": "0 0 * * *"
-        },
-        {
             "path": "/api/cron/health-check",
             "schedule": "0 */6 * * *"
         }

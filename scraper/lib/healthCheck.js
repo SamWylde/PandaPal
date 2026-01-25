@@ -11,6 +11,7 @@ import { getScraperConfig } from './db.js';
 import { PUBLIC_INDEXERS, DefinitionSync } from './cardigann/sync.js';
 import { parseCardigannYaml, extractSearchConfig } from './cardigann/parser.js';
 import { solveCFChallenge, getCachedSession, requestWithCFSession } from './cfSolver.js';
+import { autoUpdateDomains } from './cardigann/autoupdate.js';
 
 const supabaseUrl = process.env.SUPABASE_URL;
 const supabaseKey = process.env.SUPABASE_KEY;
@@ -19,10 +20,6 @@ const supabase = (supabaseUrl && supabaseKey) ? createClient(supabaseUrl, supaba
 // Test query values
 const TEST_QUERY = 'Inception';
 const TEST_IMDB_ID = 'tt1375666';
-
-// Public indexers only - NO private/login-required indexers
-// IDs must match Prowlarr indexer IDs (used for DB lookup)
-// (Now using generic list from sync.js)
 
 // Initialize sync helper
 const sync = new DefinitionSync();
@@ -300,45 +297,6 @@ async function checkIndexer(indexerId) {
 }
 
 /**
- * Run health checks for all public indexers
- */
-export async function runHealthChecks() {
-    console.log(`[HealthCheck] Starting health checks for ${PUBLIC_INDEXERS.length} public indexers...`);
-
-    // Ensure definitions are synced before running health checks
-    // This is critical on Vercel where /tmp is ephemeral
-    try {
-        console.log('[HealthCheck] Syncing definitions from Prowlarr...');
-        await sync.sync();
-        console.log('[HealthCheck] Definitions synced successfully');
-    } catch (syncError) {
-        console.error(`[HealthCheck] Failed to sync definitions: ${syncError.message}`);
-        // Continue anyway - some indexers may have DB configs
-    }
-
-    const results = {};
-
-    // Batch processing to avoid overwhelming node (concurrency: 5)
-    for (let i = 0; i < PUBLIC_INDEXERS.length; i += 5) {
-        const batch = PUBLIC_INDEXERS.slice(i, i + 5);
-        const batchPromises = batch.map(async (indexerId) => {
-            const result = await checkIndexer(indexerId);
-            results[indexerId] = result;
-
-            // Save to DB
-            await updateHealthMetrics(indexerId, result.success, result.responseTime, result.workingDomain, result.error);
-
-            return { indexerId, ...result };
-        });
-
-        await Promise.allSettled(batchPromises);
-    }
-
-    console.log('[HealthCheck] Health checks complete');
-    return results;
-}
-
-/**
  * Update health metrics in database
  */
 async function updateHealthMetrics(indexerId, success, responseTime, workingDomain, error) {
@@ -405,6 +363,49 @@ async function updateHealthMetrics(indexerId, success, responseTime, workingDoma
     } catch (err) {
         console.error(`[HealthCheck] Error updating metrics for ${indexerId}:`, err.message);
     }
+}
+
+/**
+ * Run health checks for all public indexers
+ */
+export async function runHealthChecks() {
+    console.log(`[HealthCheck] Starting health checks for ${PUBLIC_INDEXERS.length} public indexers...`);
+
+    // Ensure definitions are synced AND updated in DB before running health checks
+    // This removes the need for a separate update-domains cron
+    try {
+        console.log('[HealthCheck] Syncing definitions & updating DB...');
+        // Force update to DB, ensuring fresh configs
+        await autoUpdateDomains({
+            dryRun: false, // FORCE WRITE TO DB
+            verbose: true
+        });
+        console.log('[HealthCheck] Definitions synced & DB updated successfully');
+    } catch (syncError) {
+        console.error(`[HealthCheck] Failed to sync definitions: ${syncError.message}`);
+        // Continue anyway - some indexers may have existing DB configs
+    }
+
+    const results = {};
+
+    // Batch processing to avoid overwhelming node (concurrency: 5)
+    for (let i = 0; i < PUBLIC_INDEXERS.length; i += 5) {
+        const batch = PUBLIC_INDEXERS.slice(i, i + 5);
+        const batchPromises = batch.map(async (indexerId) => {
+            const result = await checkIndexer(indexerId);
+            results[indexerId] = result;
+
+            // Save to DB
+            await updateHealthMetrics(indexerId, result.success, result.responseTime, result.workingDomain, result.error);
+
+            return { indexerId, ...result };
+        });
+
+        await Promise.allSettled(batchPromises);
+    }
+
+    console.log('[HealthCheck] Health checks complete');
+    return results;
 }
 
 /**
