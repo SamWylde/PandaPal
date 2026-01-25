@@ -71,14 +71,49 @@ async function getPuppeteer() {
             } catch (err) {
                 // Fall back to puppeteer-core without stealth
                 console.warn(`[CFSolver] Stealth plugin init failed: ${err.message}`);
-                console.warn('[CFSolver] Falling back to puppeteer-core (standard mode)');
+                console.warn('[CFSolver] Falling back to puppeteer-core (Manual Stealth Mode)');
 
                 const puppeteerCore = await import('puppeteer-core');
                 const chromium = await import('@sparticuz/chromium');
+                const UserAgent = await import('user-agents');
 
                 puppeteer = puppeteerCore.default;
-                chromiumExecutablePath = await chromium.default.executablePath();
+                chromiumExecutablePath = await chromium.default.executablePath(); // SINGLETON for fallback too
                 stealthEnabled = false;
+
+                // Configure manual stealth args
+                const minimalArgs = [
+                    ...chromium.default.args,
+                    '--disable-blink-features=AutomationControlled',
+                    '--no-sandbox',
+                    '--disable-setuid-sandbox',
+                    '--disable-dev-shm-usage',
+                    '--disable-accelerated-2d-canvas',
+                    '--disable-gpu'
+                ];
+
+                // Override launch to inject manual stealth
+                const originalLaunch = puppeteer.launch;
+                puppeteer.launch = async (options) => {
+                    const browser = await originalLaunch.call(puppeteer, {
+                        ...options,
+                        args: minimalArgs,
+                        ignoreDefaultArgs: ['--enable-automation']
+                    });
+
+                    // Inject stealth scripts into new pages
+                    const originalNewPage = browser.newPage;
+                    browser.newPage = async () => {
+                        const page = await originalNewPage.call(browser);
+                        const ua = new UserAgent.default().toString();
+                        await page.setUserAgent(ua);
+                        await page.evaluateOnNewDocument(() => {
+                            Object.defineProperty(navigator, 'webdriver', { get: () => false });
+                        });
+                        return page;
+                    };
+                    return browser;
+                };
             }
         })();
     }
