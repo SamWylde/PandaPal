@@ -9,6 +9,7 @@ import axios from 'axios';
 import fs from 'fs/promises';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import os from 'os';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -17,7 +18,12 @@ const PROWLARR_API_BASE = 'https://api.github.com/repos/Prowlarr/Indexers/conten
 const PROWLARR_RAW_BASE = 'https://raw.githubusercontent.com/Prowlarr/Indexers/master/definitions/v11';
 
 // Local cache directory
-const CACHE_DIR = path.join(__dirname, 'definitions');
+// On Vercel (read-only fs), use /tmp
+const isLambda = process.env.AWS_LAMBDA_FUNCTION_VERSION || process.env.VERCEL || process.env.NEXT_PUBLIC_VERCEL_ENV;
+const CACHE_DIR = isLambda
+    ? path.join(os.tmpdir(), 'cardigann', 'definitions')
+    : path.join(__dirname, 'definitions');
+
 const METADATA_FILE = path.join(CACHE_DIR, '_metadata.json');
 
 // Public indexers we're interested in (no login required)
@@ -64,6 +70,8 @@ export class DefinitionSync {
             console.log(`[Cardigann] Cache directory ready: ${this.cacheDir}`);
         } catch (error) {
             console.error(`[Cardigann] Failed to create cache dir: ${error.message}`);
+            // If we can't create cache dir, we should arguably throw or handle it, 
+            // but for now logging is consistent with existing code.
         }
     }
 
