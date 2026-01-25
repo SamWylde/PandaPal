@@ -225,7 +225,7 @@ async function checkIndexer(indexerId) {
                 if (blockType.toLowerCase().includes('cloudflare')) {
                     console.log(`[HealthCheck] ${indexerId}: Attempting CF bypass...`);
                     try {
-                        const cfResult = await solveCFChallenge(testUrl, { timeout: 120000 });
+                        const cfResult = await solveCFChallenge(testUrl, { timeout: 30000 });
                         if (cfResult.success) {
                             // Retry with CF cookies
                             console.log(`[HealthCheck] ${indexerId}: CF solved, retrying with cookies...`);

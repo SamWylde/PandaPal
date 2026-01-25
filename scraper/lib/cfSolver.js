@@ -278,7 +278,8 @@ async function waitForChallengeSolved(page, timeoutMs = 60000) {
  * @returns {Promise<{success: boolean, cookies?: array, userAgent?: string, error?: string}>}
  */
 export async function solveCFChallenge(url, options = {}) {
-    const { timeout = 120000, useCache = true } = options;
+    const { timeout = 60000, useCache = true } = options;
+    console.log(`[CFSolver] Solving for ${url} (timeout: ${timeout}ms)`);
     const domain = extractDomain(url);
 
     console.log(`[CFSolver] Attempting to solve CF challenge for ${domain}`);
