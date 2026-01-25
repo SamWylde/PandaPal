@@ -315,6 +315,7 @@ export async function solveCFChallenge(url, options = {}) {
 
     // Need to solve with browser
     let browser = null;
+    let page = null;  // Track page for explicit cleanup
 
     try {
         // Get puppeteer instance (with or without stealth)
@@ -352,7 +353,7 @@ export async function solveCFChallenge(url, options = {}) {
             timeout: 30000
         });
 
-        const page = await browser.newPage();
+        page = await browser.newPage();
 
         // Set a realistic user agent
         const userAgent = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36';
@@ -439,6 +440,14 @@ export async function solveCFChallenge(url, options = {}) {
             error: error.message
         };
     } finally {
+        // Hospital-grade cleanup: explicitly close page before browser
+        if (page) {
+            try {
+                await page.close();
+            } catch (e) {
+                console.log(`[CFSolver] Error closing page: ${e.message}`);
+            }
+        }
         if (browser) {
             try {
                 await browser.close();

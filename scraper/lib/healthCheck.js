@@ -401,10 +401,18 @@ export async function runHealthChecks() {
     let candidates = [];
 
     if (supabase) {
-        // Fetch current health status
-        const { data: healthData, error } = await supabase
-            .from('indexer_health')
-            .select('id, last_check');
+        // Fetch current health status (with timeout to prevent hangs)
+        let healthData = null;
+        try {
+            const dbResult = await withTimeout(
+                supabase.from('indexer_health').select('id, last_check'),
+                10000, // 10 second timeout for DB query
+                'DB query timed out'
+            );
+            healthData = dbResult.data;
+        } catch (dbErr) {
+            console.error(`[HealthCheck] Failed to fetch health status: ${dbErr.message}`);
+        }
 
         const dbMap = new Map((healthData || []).map(r => [r.id, r.last_check]));
 
