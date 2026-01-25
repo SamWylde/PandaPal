@@ -25,7 +25,6 @@ async function getPuppeteer() {
                 // Try to use puppeteer-extra with stealth
                 const puppeteerExtra = await import('puppeteer-extra');
                 const StealthPlugin = await import('puppeteer-extra-plugin-stealth');
-                const UserPreferencesPlugin = await import('puppeteer-extra-plugin-user-preferences');
                 const chromium = await import('@sparticuz/chromium');
 
                 // Configuration for serverless
@@ -61,13 +60,12 @@ async function getPuppeteer() {
                 // Initialize plugins
                 puppeteer = puppeteerExtra.default;
                 puppeteer.use(StealthPlugin.default());
-                puppeteer.use(UserPreferencesPlugin.default());
                 stealthEnabled = true;
 
                 // CRITICAL: Get executable path ONCE here to prevent race condition during extraction
                 chromiumExecutablePath = await chromium.default.executablePath();
 
-                console.log('[CFSolver] Loaded puppeteer-extra with stealth & user-preferences plugins');
+                console.log('[CFSolver] Loaded puppeteer-extra with stealth plugin');
             } catch (err) {
                 // Fall back to puppeteer-core without stealth
                 console.warn(`[CFSolver] Stealth plugin init failed: ${err.message}`);
