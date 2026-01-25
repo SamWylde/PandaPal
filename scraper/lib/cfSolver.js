@@ -61,12 +61,15 @@ async function getPuppeteer() {
                 puppeteer = puppeteerExtra.default;
                 puppeteer.use(StealthPlugin.default());
 
-                // Explicitly use UserPreferences to satisfy dependency check
+                // Explicitly use UserPreferences & its dependencies to satisfy checks
                 try {
+                    const UserDataDirPlugin = await import('puppeteer-extra-plugin-user-data-dir');
+                    puppeteer.use(UserDataDirPlugin.default());
+
                     const UserPreferencesPlugin = await import('puppeteer-extra-plugin-user-preferences');
                     puppeteer.use(UserPreferencesPlugin.default());
                 } catch (prefErr) {
-                    console.warn('[CFSolver] UserPreferences import failed:', prefErr.message);
+                    console.warn('[CFSolver] Plugin import warning:', prefErr.message);
                 }
 
                 stealthEnabled = true;
