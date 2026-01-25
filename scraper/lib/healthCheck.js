@@ -8,94 +8,109 @@
 import { createClient } from '@supabase/supabase-js';
 import axios from 'axios';
 import { getScraperConfig } from './db.js';
+import { PUBLIC_INDEXERS, DefinitionSync } from './cardigann/sync.js';
+import { parseCardigannYaml, extractSearchConfig } from './cardigann/parser.js';
 
 const supabaseUrl = process.env.SUPABASE_URL;
 const supabaseKey = process.env.SUPABASE_KEY;
 const supabase = (supabaseUrl && supabaseKey) ? createClient(supabaseUrl, supabaseKey) : null;
 
-// Test query - a known popular movie (Inception)
+// Test query values
+const TEST_QUERY = 'Inception';
 const TEST_IMDB_ID = 'tt1375666';
-const TEST_TITLE = 'Inception';
 
 // Public indexers only - NO private/login-required indexers
 // IDs must match Prowlarr indexer IDs (used for DB lookup)
-const PUBLIC_INDEXERS = {
-    'yts': {
-        testUrl: (domain) => `${domain}/list_movies.json?query_term=${TEST_IMDB_ID}`,
-        validateResponse: (data) => data?.status === 'ok',
-        type: 'api'
-    },
-    'eztv': {
-        testUrl: (domain) => `${domain}/get-torrents?imdb_id=1375666&limit=1`,
-        validateResponse: (data) => data?.torrents !== undefined,
-        type: 'api'
-    },
-    '1337x': {
-        testUrl: (domain) => `${domain}/search/${TEST_TITLE}/1/`,
-        validateResponse: (html) => html?.includes('table') || html?.includes('torrent'),
-        type: 'html'
-    },
-    'torrentgalaxyclone': {  // Prowlarr name for TorrentGalaxy
-        testUrl: (domain) => `${domain}/torrents.php?search=${TEST_IMDB_ID}`,
-        validateResponse: (html) => html?.includes('tgxtablerow') || html?.includes('torrent'),
-        type: 'html'
-    },
-    'nyaasi': {
-        testUrl: (domain) => `${domain}/?page=rss&q=test`,
-        validateResponse: (xml) => xml?.includes('<rss') || xml?.includes('<item>'),
-        type: 'rss'
-    },
-    'bitsearch': {
-        testUrl: (domain) => `${domain}/search?q=${TEST_TITLE}`,
-        validateResponse: (html) => html?.includes('search-result') || html?.includes('torrent'),
-        type: 'html'
-    },
-    'thepiratebay': {
-        testUrl: (domain) => `${domain}/search/${TEST_TITLE}/1/99/0`,
-        validateResponse: (html) => html?.includes('detName') || html?.includes('torrent'),
-        type: 'html'
-    },
-    'limetorrents': {
-        testUrl: (domain) => `${domain}/search/all/${TEST_TITLE}/`,
-        validateResponse: (html) => html?.includes('torrent') || html?.includes('magnet'),
-        type: 'html'
-    },
-    'torrentdownloads': {
-        testUrl: (domain) => `${domain}/search/?search=${TEST_TITLE}`,
-        validateResponse: (html) => html?.includes('torrent') || html?.includes('magnet'),
-        type: 'html'
-    }
-};
+// (Now using generic list from sync.js)
+
+// Initialize sync helper
+const sync = new DefinitionSync();
 
 /**
- * Run health check for a single indexer
+ * Run health check for a single indexer (Generic Logic)
  */
 async function checkIndexer(indexerId) {
-    const config = PUBLIC_INDEXERS[indexerId];
-    if (!config) {
-        return { success: false, error: 'Unknown indexer', responseTime: 0 };
-    }
-
-    // Get domains from database or use fallback
+    // 1. Get domains from database
     const scraperConfig = await getScraperConfig(indexerId);
-    const domains = scraperConfig?.links || [];
+    let domains = scraperConfig?.links || [];
+
+    if (domains.length === 0) {
+        // Fallback: try to get from definitions if not in DB yet
+        try {
+            const def = await sync.getDefinition(indexerId);
+            if (def) {
+                const parsed = parseCardigannYaml(def);
+                domains = parsed.links || [];
+            }
+        } catch (e) { }
+    }
 
     if (domains.length === 0) {
         return { success: false, error: 'No domains configured', responseTime: 0 };
     }
 
-    // Try each domain until one works
+    // 2. Get definition to construct path
+    let searchPath = '/';
+    let checkType = 'html';
+
+    try {
+        const defContent = await sync.getDefinition(indexerId);
+        if (defContent) {
+            const parsed = parseCardigannYaml(defContent);
+            const searchConfig = extractSearchConfig(parsed);
+
+            // Determine type (API or HTML)
+            if (parsed.search?.response?.type === 'json' ||
+                (parsed.search?.paths?.[0]?.path || '').includes('api')) {
+                checkType = 'api';
+            }
+
+            // Find a suitable search path
+            if (searchConfig.paths && searchConfig.paths.length > 0) {
+                let rawPath = searchConfig.paths[0].path; // Use first path
+
+                // Replace variables
+                searchPath = rawPath
+                    .replace('{{ .Keywords }}', TEST_QUERY)
+                    .replace('{{ .Query.IMDBID }}', TEST_IMDB_ID)
+                    .replace('{{ .Query.Page }}', '1')
+                    .replace('{{ .Config.sitelink }}', '')
+
+                    // Handle {{ if ... }}...{{ else }}...{{ end }} - taking first branch for Keywords/IMDBID logic
+                    .replace(/{{ if .*? }}(.*?){{ else }}.*?{{ end }}/g, '$1')
+
+                    // Handle {{ if ... }}...{{ end }} - take content
+                    .replace(/{{ if .*? }}(.*?){{ end }}/g, '$1')
+
+                    // Cleanup remaining tags
+                    .replace(/{{.*?}}/g, '')
+
+                    // Cleanup double slashes or weird artifacts
+                    .replace(/\/+/g, '/'); // careful with protocol
+
+                // Ensure leading slash isn't double
+                if (!searchPath.startsWith('/')) searchPath = '/' + searchPath;
+            }
+        }
+    } catch (e) {
+        console.warn(`[HealthCheck] Failed to parse definition for ${indexerId}, using default root path`);
+    }
+
+    // 3. Test each domain
     for (const domain of domains) {
         const startTime = Date.now();
+        // Remove trailing slash from domain to avoid double slash with searchPath
+        const cleanDomain = domain.replace(/\/$/, '');
+        const testUrl = `${cleanDomain}${searchPath}`;
+
         try {
-            const testUrl = config.testUrl(domain);
             console.log(`[HealthCheck] Testing ${indexerId}: ${testUrl}`);
 
             const response = await axios.get(testUrl, {
                 timeout: 10000,
                 headers: {
                     'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/120.0.0.0',
-                    'Accept': config.type === 'api' ? 'application/json' : 'text/html,application/xml',
+                    'Accept': checkType === 'api' ? 'application/json' : 'text/html,application/xml',
                 },
                 validateStatus: (status) => status < 500
             });
@@ -103,14 +118,22 @@ async function checkIndexer(indexerId) {
             const responseTime = Date.now() - startTime;
 
             // Check for Cloudflare blocks
-            const responseText = typeof response.data === 'string' ? response.data : '';
+            const responseText = typeof response.data === 'string' ? response.data : JSON.stringify(response.data);
             if (response.status === 403 || responseText.toLowerCase().includes('cloudflare')) {
                 console.log(`[HealthCheck] ${indexerId} (${domain}): Cloudflare blocked`);
                 continue; // Try next domain
             }
 
-            // Validate response content
-            const isValid = config.validateResponse(response.data);
+            // Basic validation
+            let isValid = true;
+            if (checkType === 'api') {
+                // For API, ensure we got JSON (axios auto-parses) and it's not empty
+                isValid = typeof response.data === 'object';
+            } else {
+                // For HTML, ensure we got some content
+                isValid = responseText.length > 500;
+            }
+
             if (!isValid) {
                 console.log(`[HealthCheck] ${indexerId} (${domain}): Invalid response`);
                 continue;
@@ -125,7 +148,6 @@ async function checkIndexer(indexerId) {
             };
 
         } catch (error) {
-            const responseTime = Date.now() - startTime;
             console.log(`[HealthCheck] ${indexerId} (${domain}): FAILED - ${error.message}`);
             // Continue to next domain
         }
@@ -143,26 +165,24 @@ async function checkIndexer(indexerId) {
  * Run health checks for all public indexers
  */
 export async function runHealthChecks() {
-    console.log('[HealthCheck] Starting health checks for all public indexers...');
+    console.log(`[HealthCheck] Starting health checks for ${PUBLIC_INDEXERS.length} public indexers...`);
 
     const results = {};
-    const indexerIds = Object.keys(PUBLIC_INDEXERS);
 
-    // Run checks in parallel with concurrency limit
-    const checkPromises = indexerIds.map(async (indexerId) => {
-        const result = await checkIndexer(indexerId);
-        results[indexerId] = result;
-        return { indexerId, ...result };
-    });
+    // Batch processing to avoid overwhelming node (concurrency: 5)
+    for (let i = 0; i < PUBLIC_INDEXERS.length; i += 5) {
+        const batch = PUBLIC_INDEXERS.slice(i, i + 5);
+        const batchPromises = batch.map(async (indexerId) => {
+            const result = await checkIndexer(indexerId);
+            results[indexerId] = result;
 
-    const checkResults = await Promise.allSettled(checkPromises);
+            // Save to DB
+            await updateHealthMetrics(indexerId, result.success, result.responseTime, result.workingDomain, result.error);
 
-    // Update database with results
-    for (const result of checkResults) {
-        if (result.status === 'fulfilled') {
-            const { indexerId, success, responseTime, workingDomain, error } = result.value;
-            await updateHealthMetrics(indexerId, success, responseTime, workingDomain, error);
-        }
+            return { indexerId, ...result };
+        });
+
+        await Promise.allSettled(batchPromises);
     }
 
     console.log('[HealthCheck] Health checks complete');
@@ -174,7 +194,6 @@ export async function runHealthChecks() {
  */
 async function updateHealthMetrics(indexerId, success, responseTime, workingDomain, error) {
     if (!supabase) {
-        console.warn('[HealthCheck] Supabase not configured, skipping DB update');
         return;
     }
 
@@ -228,9 +247,9 @@ async function updateHealthMetrics(indexerId, success, responseTime, workingDoma
             .upsert(updateData, { onConflict: 'id' });
 
         if (upsertError) {
-            console.error(`[HealthCheck] Failed to update metrics for ${indexerId}:`, upsertError.message);
+            console.error(`[HealthCheck] Failed DB update for ${indexerId}: ${upsertError.message}`);
         } else {
-            console.log(`[HealthCheck] Updated ${indexerId}: success=${success}, priority=${priority}, avgMs=${avgResponseMs}`);
+            console.log(`[HealthCheck] Updated ${indexerId}: success=${success}, priority=${priority}`);
         }
 
     } catch (err) {
@@ -243,11 +262,11 @@ async function updateHealthMetrics(indexerId, success, responseTime, workingDoma
  * Returns indexers sorted by priority (best first)
  */
 export async function getWorkingIndexers(options = {}) {
-    const { minSuccessRate = 50, maxResponseMs = 5000, limit = 10 } = options;
+    const { minSuccessRate = 20, maxResponseMs = 10000, limit = 20 } = options;
 
     if (!supabase) {
         // Return default list if no DB
-        return Object.keys(PUBLIC_INDEXERS);
+        return PUBLIC_INDEXERS;
     }
 
     try {
@@ -256,15 +275,16 @@ export async function getWorkingIndexers(options = {}) {
             .select('id, priority, success_rate, avg_response_ms, working_domain')
             .eq('is_public', true)
             .eq('is_enabled', true)
-            .gte('success_rate', minSuccessRate)
-            .lte('avg_response_ms', maxResponseMs)
+            // Relaxed constraints for now
             .order('priority', { ascending: false })
             .limit(limit);
 
         if (error) {
             console.error('[HealthCheck] Failed to fetch working indexers:', error.message);
-            return Object.keys(PUBLIC_INDEXERS);
+            return PUBLIC_INDEXERS;
         }
+
+        if (data.length === 0) return PUBLIC_INDEXERS;
 
         return data.map(row => ({
             id: row.id,
@@ -276,7 +296,7 @@ export async function getWorkingIndexers(options = {}) {
 
     } catch (err) {
         console.error('[HealthCheck] Error fetching working indexers:', err.message);
-        return Object.keys(PUBLIC_INDEXERS);
+        return PUBLIC_INDEXERS;
     }
 }
 
@@ -300,8 +320,8 @@ export async function getHealthSummary() {
         const summary = {
             totalIndexers: data.length,
             workingIndexers: data.filter(d => d.success_rate > 50).length,
-            avgSuccessRate: data.reduce((sum, d) => sum + parseFloat(d.success_rate || 0), 0) / data.length,
-            avgResponseMs: data.reduce((sum, d) => sum + (d.avg_response_ms || 0), 0) / data.length,
+            avgSuccessRate: data.reduce((sum, d) => sum + parseFloat(d.success_rate || 0), 0) / data.length || 0,
+            avgResponseMs: data.reduce((sum, d) => sum + (d.avg_response_ms || 0), 0) / data.length || 0,
             indexers: data.map(d => ({
                 id: d.id,
                 priority: d.priority,

@@ -28,7 +28,7 @@ const METADATA_FILE = path.join(CACHE_DIR, '_metadata.json');
 
 // Public indexers we're interested in (no login required)
 // Names must match EXACT file names in Prowlarr/Indexers repo (without .yml)
-const PUBLIC_INDEXERS = [
+export const PUBLIC_INDEXERS = [
     '0magnet',
     '1337x',
     '52bt',
