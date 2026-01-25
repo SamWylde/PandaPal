@@ -425,7 +425,8 @@ export async function runHealthChecks() {
     }
 
     // 3. Select top 10
-    const BATCH_SIZE = 10;
+    // 5 indexers per run, runs every 30 min = 10/hour = 240/day coverage
+    const BATCH_SIZE = 5;
     const batch = candidates.slice(0, BATCH_SIZE);
 
     console.log(`[HealthCheck] Processing batch of ${batch.length} indexers (out of ${PUBLIC_INDEXERS.length} total)`);
