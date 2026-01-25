@@ -10,11 +10,27 @@
 
 import { runHealthChecks, getHealthSummary } from '../../scraper/lib/healthCheck.js';
 
+// Hospital-grade timeout wrapper
+const withTimeout = (promise, ms, errorMsg) => {
+    const timeout = new Promise((_, reject) =>
+        setTimeout(() => reject(new Error(errorMsg)), ms)
+    );
+    return Promise.race([promise, timeout]);
+};
+
+// Vercel has 60s timeout, we use 55s to ensure clean response
+const MAX_CRON_TIMEOUT_MS = 55000;
+const MAX_SUMMARY_TIMEOUT_MS = 10000;
+
 export default async function handler(req, res) {
     try {
         // If just requesting summary, don't run checks
         if (req.query.summary === 'true') {
-            const summary = await getHealthSummary();
+            const summary = await withTimeout(
+                getHealthSummary(),
+                MAX_SUMMARY_TIMEOUT_MS,
+                'Health summary timed out'
+            );
             return res.status(200).json({
                 success: true,
                 type: 'summary',
@@ -25,7 +41,11 @@ export default async function handler(req, res) {
         console.log('[Cron] Starting indexer health checks...');
         const startTime = Date.now();
 
-        const results = await runHealthChecks();
+        const results = await withTimeout(
+            runHealthChecks(),
+            MAX_CRON_TIMEOUT_MS,
+            'Health check timed out after 55s'
+        );
 
         const duration = Date.now() - startTime;
         const successCount = Object.values(results).filter(r => r.success).length;

@@ -374,13 +374,25 @@ async function updateHealthMetrics(indexerId, success, responseTime, workingDoma
  * To prevent Vercel timeouts, we only check the 10 oldest/unchecked indexers per run.
  * With an hourly cron, this covers 240 indexers/day.
  */
+// Hospital-grade timeout wrapper
+const withTimeout = (promise, ms, errorMsg) => {
+    const timeout = new Promise((_, reject) =>
+        setTimeout(() => reject(new Error(errorMsg)), ms)
+    );
+    return Promise.race([promise, timeout]);
+};
+
 export async function runHealthChecks() {
     console.log('[HealthCheck] Starting health check job...');
 
-    // 1. Ensure definitions are synced
+    // 1. Ensure definitions are synced (with timeout to prevent GitHub hangs)
     try {
         console.log('[HealthCheck] Syncing definitions & updating DB...');
-        await autoUpdateDomains({ dryRun: false, verbose: false });
+        await withTimeout(
+            autoUpdateDomains({ dryRun: false, verbose: false }),
+            15000, // 15 second timeout for GitHub sync
+            'Definition sync timed out after 15s'
+        );
     } catch (syncError) {
         console.error(`[HealthCheck] Failed to sync definitions: ${syncError.message}`);
     }
