@@ -27,6 +27,95 @@ const TEST_IMDB_ID = 'tt1375666';
 const sync = new DefinitionSync();
 
 /**
+ * Detect specific type of block/challenge from response
+ * Based on Prowlarr's CloudFlareDetectionService.cs implementation
+ * @see https://github.com/Prowlarr/Prowlarr/blob/develop/src/NzbDrone.Core/Http/CloudFlare/CloudFlareDetectionService.cs
+ * Returns null if no block detected
+ */
+function detectBlockType(response, responseText) {
+    const status = response.status;
+    const headers = response.headers || {};
+    const text = responseText.toLowerCase();
+    const server = (headers['server'] || '').toLowerCase();
+
+    // === Prowlarr-style Cloudflare Detection ===
+    // Check server header for CF/DDoS-Guard
+    const isCfServer = server.includes('cloudflare') || server.includes('cloudflare-nginx');
+    const isDdosGuard = server.includes('ddos-guard');
+
+    // Only check content if status is 403 or 503 (Prowlarr's approach)
+    if (status === 403 || status === 503) {
+        // Cloudflare challenge page titles (exact patterns from Prowlarr)
+        if (text.includes('<title>just a moment...</title>')) {
+            return 'Cloudflare JS challenge';
+        }
+        if (text.includes('<title>attention required! | cloudflare</title>')) {
+            return 'Cloudflare CAPTCHA challenge';
+        }
+        if (text.includes('<title>access denied</title>') && isCfServer) {
+            return 'Cloudflare access denied';
+        }
+        if (text.includes('error code: 1020')) {
+            return 'Cloudflare error 1020 (IP blocked)';
+        }
+
+        // DDoS-Guard detection (from Prowlarr)
+        if (text.includes('<title>ddos-guard</title>') || isDdosGuard) {
+            return 'DDoS-Guard block';
+        }
+
+        // Custom CF detection: Vary header + ddos in content (from Prowlarr)
+        const varyHeader = headers['vary'] || '';
+        if (varyHeader === 'Accept-Encoding,User-Agent' && text.includes('ddos')) {
+            return 'DDoS protection (custom)';
+        }
+
+        // Generic Cloudflare block (server header confirms CF)
+        if (isCfServer) {
+            return `Cloudflare block (${status})`;
+        }
+    }
+
+    // === Additional FlareSolverr-style detection ===
+    // These patterns indicate CF challenge even without 403/503
+    if (text.includes('id="cf-challenge-running"') ||
+        text.includes('id="cf-please-wait"') ||
+        text.includes('id="challenge-spinner"') ||
+        text.includes('id="turnstile-wrapper"') ||
+        text.includes('class="cf-error-title"')) {
+        return 'Cloudflare challenge page';
+    }
+
+    // === Other WAF/Protection Services ===
+    // Sucuri WAF
+    if (text.includes('sucuri') && (status === 403 || text.includes('access denied'))) {
+        return 'Sucuri WAF block';
+    }
+
+    // Akamai
+    if (text.includes('akamai') && status === 403) {
+        return 'Akamai block';
+    }
+
+    // Rate limiting
+    if (status === 429) {
+        return 'Rate limited (429)';
+    }
+
+    // Generic 403 without WAF signature
+    if (status === 403) {
+        return 'HTTP 403 Forbidden';
+    }
+
+    // 503 without protection service
+    if (status === 503) {
+        return 'Service unavailable (503)';
+    }
+
+    return null;
+}
+
+/**
  * Run health check for a single indexer (Generic Logic)
  */
 async function checkIndexer(indexerId) {
@@ -113,12 +202,13 @@ async function checkIndexer(indexerId) {
             });
 
             const responseTime = Date.now() - startTime;
-
-            // Check for Cloudflare blocks
             const responseText = typeof response.data === 'string' ? response.data : JSON.stringify(response.data);
-            if (response.status === 403 || responseText.toLowerCase().includes('cloudflare')) {
-                console.log(`[HealthCheck] ${indexerId} (${domain}): Cloudflare blocked`);
-                lastError = 'Cloudflare blocked';
+
+            // Check for various block types (Cloudflare, WAF, rate limiting, etc.)
+            const blockType = detectBlockType(response, responseText);
+            if (blockType) {
+                console.log(`[HealthCheck] ${indexerId} (${domain}): ${blockType}`);
+                lastError = blockType;
                 continue; // Try next domain
             }
 
