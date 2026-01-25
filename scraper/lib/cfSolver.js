@@ -20,6 +20,9 @@ async function getPuppeteer() {
         // Try to use puppeteer-extra with stealth
         const puppeteerExtra = await import('puppeteer-extra');
         const StealthPlugin = await import('puppeteer-extra-plugin-stealth');
+        // Ensure stealth evasion modules are available in the bundle
+        await import('puppeteer-extra-plugin-stealth/evasions/chrome.app/index.js');
+        await import('puppeteer-extra-plugin-user-preferences');
         puppeteer = puppeteerExtra.default;
         puppeteer.use(StealthPlugin.default());
         stealthEnabled = true;
