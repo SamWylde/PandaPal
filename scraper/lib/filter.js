@@ -3,6 +3,13 @@ import { Type } from './types.js';
 export const Providers = {
   key: 'providers',
   options: [
+    // Smart mode - uses health-check prioritized indexers from database
+    {
+      key: 'smart',
+      label: '🧠 Smart (Auto-select best working sources)',
+      smart: true
+    },
+    // Legacy providers (manual selection)
     {
       key: 'yts',
       label: 'YTS'
@@ -10,10 +17,6 @@ export const Providers = {
     {
       key: 'eztv',
       label: 'EZTV'
-    },
-    {
-      key: 'rarbg',
-      label: 'RARBG'
     },
     {
       key: '1337x',
@@ -30,6 +33,18 @@ export const Providers = {
     {
       key: 'torrentgalaxy',
       label: 'TorrentGalaxy'
+    },
+    {
+      key: 'bitsearch',
+      label: 'BitSearch'
+    },
+    {
+      key: 'solidtorrents',
+      label: 'SolidTorrents'
+    },
+    {
+      key: 'limetorrents',
+      label: 'LimeTorrents'
     },
     {
       key: 'magnetdl',
@@ -56,6 +71,16 @@ export const Providers = {
       anime: true
     },
     {
+      key: 'dmhy',
+      label: 'DMHY',
+      anime: true
+    },
+    {
+      key: 'acgrip',
+      label: 'ACG.RIP',
+      anime: true
+    },
+    {
       key: 'rutor',
       label: 'Rutor',
       foreign: '🇷🇺'
@@ -76,13 +101,13 @@ export const Providers = {
       foreign: '🇵🇹'
     },
     {
-      key: 'micoleaodublado',
-      label: 'MicoLeaoDublado',
-      foreign: '🇵🇹'
-    },
-    {
       key: 'torrent9',
       label: 'Torrent9',
+      foreign: '🇫🇷'
+    },
+    {
+      key: 'cpasbienclone',
+      label: 'CPasBien',
       foreign: '🇫🇷'
     },
     {
@@ -96,19 +121,14 @@ export const Providers = {
       foreign: '🇪🇸'
     },
     {
-      key: 'wolfmax4k',
-      label: 'Wolfmax4k',
+      key: 'elitetorrent-wf',
+      label: 'EliteTorrent',
       foreign: '🇪🇸'
     },
     {
       key: 'cinecalidad',
       label: 'Cinecalidad',
       foreign: '🇲🇽'
-    },
-    {
-      key: 'besttorrents',
-      label: 'BestTorrents',
-      foreign: '🇵🇱'
     },
   ]
 };
