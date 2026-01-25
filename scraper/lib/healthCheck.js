@@ -422,22 +422,22 @@ export async function runHealthChecks() {
 
     const results = {};
 
-    // 4. Run checks (Concurrent batch of 5)
-    // We already limited to 10 total, so we can just do 2 mini-batches of 5 or all 10 parallel?
-    // Let's stick to 5 concurrency to be safe on memory.
-    for (let i = 0; i < batch.length; i += 5) {
-        const miniBatch = batch.slice(i, i + 5);
-        const batchPromises = miniBatch.map(async (candidate) => {
+    // 4. Run checks (Sequentially 1 by 1)
+    // We run sequentially to avoid triggering Cloudflare rate limits and to save Vercel memory.
+    for (const candidate of batch) {
+        try {
+            console.log(`[HealthCheck] Checking ${candidate.id}...`);
             const result = await checkIndexer(candidate.id);
             results[candidate.id] = result;
 
             // Save to DB (Update last_check)
             await updateHealthMetrics(candidate.id, result.success, result.responseTime, result.workingDomain, result.error);
 
-            return result;
-        });
-
-        await Promise.allSettled(batchPromises);
+            // Small delay between checks to be "nice"
+            await new Promise(r => setTimeout(r, 1000));
+        } catch (err) {
+            console.error(`[HealthCheck] Critical error checking ${candidate.id}:`, err);
+        }
     }
 
     console.log('[HealthCheck] Batch complete.');
