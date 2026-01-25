@@ -18,8 +18,10 @@ const withTimeout = (promise, ms, errorMsg) => {
     return Promise.race([promise, timeout]);
 };
 
-// Vercel has 60s timeout, we use 55s to ensure clean response
-const MAX_CRON_TIMEOUT_MS = 55000;
+// Vercel Pro has 300s (5 min) timeout
+// Health checks need time for CF browser challenges (30s each × up to 10 indexers)
+// We use 280s to ensure clean response before Vercel kills us
+const MAX_CRON_TIMEOUT_MS = 280000;
 const MAX_SUMMARY_TIMEOUT_MS = 10000;
 
 export default async function handler(req, res) {
@@ -44,7 +46,7 @@ export default async function handler(req, res) {
         const results = await withTimeout(
             runHealthChecks(),
             MAX_CRON_TIMEOUT_MS,
-            'Health check timed out after 55s'
+            'Health check timed out after 280s (CF challenges may need more time)'
         );
 
         const duration = Date.now() - startTime;
