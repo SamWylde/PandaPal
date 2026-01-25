@@ -157,8 +157,13 @@ export class CardigannEngine {
             '.Query.Episode': options.episode || '',
             '.Query.Year': options.year || '',
             '.Today.Year': new Date().getFullYear().toString(),
-            '.Config.sort': '',  // Default config values
-            '.Config.category': ''
+            // Default config values (normally set by user in Prowlarr/Jackett)
+            '.Config.sort': '',
+            '.Config.category': '',
+            '.Config.cat-id': '',
+            '.Config.cat': '',
+            '.Config.quality': '',
+            '.Config.lang': '',
         };
 
         // First, handle {{ if .Var }}...{{ else }}...{{ end }} conditionals
@@ -184,6 +189,15 @@ export class CardigannEngine {
             const escapedVarName = varName.replace(/\./g, '\\.');
             result = result.replace(new RegExp(`\\{\\{\\s*${escapedVarName}\\s*\\}\\}`, 'g'), varValue);
         }
+
+        // CLEANUP: Remove any remaining {{ .Config.* }} or {{ .* }} template tags
+        // These are user-configurable settings we don't have values for
+        result = result.replace(/\{\{\s*\.Config\.[^}]+\}\}/g, '');
+        result = result.replace(/\{\{\s*\.[^}]+\}\}/g, '');
+
+        // Clean up any leftover artifacts (trailing commas, double dashes, etc.)
+        result = result.replace(/,+\s*$/, '');  // Trailing commas
+        result = result.replace(/--+/g, '-');    // Multiple dashes
 
         return result;
     }
