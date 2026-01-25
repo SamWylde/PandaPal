@@ -462,7 +462,7 @@ export async function getWorkingIndexers(options = {}) {
             .select('id, priority, success_rate, avg_response_ms, working_domain')
             .eq('is_public', true)
             .eq('is_enabled', true)
-            // Relaxed constraints for now
+            .gte('success_rate', minSuccessRate)  // Only return indexers that pass health threshold
             .order('priority', { ascending: false })
             .limit(limit);
 
