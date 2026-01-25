@@ -28,6 +28,8 @@ async function getPuppeteer() {
         await import('puppeteer-extra-plugin-stealth/evasions/chrome.csi/index.js');
         await import('puppeteer-extra-plugin-stealth/evasions/chrome.loadTimes/index.js');
         await import('puppeteer-extra-plugin-stealth/evasions/chrome.runtime/index.js');
+        await import('puppeteer-extra-plugin-stealth/evasions/console.debug/index.js');
+        await import('puppeteer-extra-plugin-stealth/evasions/defaultArgs/index.js');
         await import('puppeteer-extra-plugin-stealth/evasions/iframe.contentWindow/index.js');
         await import('puppeteer-extra-plugin-stealth/evasions/media.codecs/index.js');
         await import('puppeteer-extra-plugin-stealth/evasions/navigator.hardwareConcurrency/index.js');
