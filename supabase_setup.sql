@@ -172,8 +172,20 @@ CREATE TABLE IF NOT EXISTS public.indexer_health (
   "last_error" TEXT,                         -- Last error message
   "working_domain" TEXT,                     -- Currently working domain URL
   "priority" INTEGER DEFAULT 50,             -- Priority score (higher = use first, 0-100)
+  "content_types" JSONB DEFAULT '["movie", "series"]'::jsonb,  -- Supported content types (movie, series, anime)
   "updated_at" TIMESTAMPTZ DEFAULT now()
 );
+
+-- Migration: Add content_types column if it doesn't exist (for existing DBs)
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM information_schema.columns
+                 WHERE table_schema = 'public'
+                 AND table_name = 'indexer_health'
+                 AND column_name = 'content_types') THEN
+    ALTER TABLE public.indexer_health ADD COLUMN "content_types" JSONB DEFAULT '["movie", "series"]'::jsonb;
+  END IF;
+END $$;
 
 -- Create indexes for health queries
 CREATE INDEX IF NOT EXISTS idx_indexer_health_priority

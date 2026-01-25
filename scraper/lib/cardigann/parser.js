@@ -313,4 +313,100 @@ export function extractSearchConfig(definition) {
     };
 }
 
-export default { parseCardigannYaml, extractDomains, extractSearchConfig };
+/**
+ * Extract supported content types from definition
+ * Analyzes category mappings and search modes to determine what content types this indexer supports
+ * @returns {string[]} Array of content types: 'movie', 'series', 'anime'
+ */
+export function extractContentTypes(definition) {
+    const contentTypes = new Set();
+
+    // Analyze category mappings
+    const categoryMappings = definition.caps?.categorymappings || [];
+    for (const mapping of categoryMappings) {
+        const cat = mapping.cat?.toLowerCase() || '';
+        const desc = mapping.desc?.toLowerCase() || '';
+
+        // Movies
+        if (cat.includes('movie') || desc.includes('movie') || desc.includes('film')) {
+            contentTypes.add('movie');
+        }
+
+        // TV/Series
+        if (cat.startsWith('tv') || cat.includes('tv/') ||
+            desc.includes('tv') || desc.includes('series') || desc.includes('episode')) {
+            // Check if it's anime-specific TV
+            if (cat.includes('anime') || desc.includes('anime')) {
+                contentTypes.add('anime');
+            } else {
+                contentTypes.add('series');
+            }
+        }
+
+        // Anime
+        if (cat.includes('anime') || desc.includes('anime')) {
+            contentTypes.add('anime');
+        }
+
+        // Adult/Hentai - mark as empty (will be filtered out)
+        if (cat.includes('xxx') || cat.includes('adult') || cat.includes('porn') ||
+            desc.includes('hentai') || desc.includes('jav') || desc.includes('adult')) {
+            // Don't add any content types - this indexer shouldn't be used
+        }
+
+        // Games - mark as empty
+        if (cat.includes('pc/games') || cat.includes('console') ||
+            desc.includes('game') && !desc.includes('movie')) {
+            // Don't add movie/series - games only indexer
+        }
+    }
+
+    // Also check search modes
+    const modes = definition.caps?.modes || {};
+    if (modes['movie-search']) {
+        contentTypes.add('movie');
+    }
+    if (modes['tv-search']) {
+        contentTypes.add('series');
+    }
+
+    // If we found anime but no series, also add series (anime is a subset)
+    // Actually no - keep them separate for precise filtering
+
+    // If no content types detected, check if it's a known special case
+    const id = definition.id?.toLowerCase() || '';
+
+    // Games-only indexers
+    if (['catorrent', 'skidrowrepack', 'fitgirl', 'gamestorrents', 'crackingpatching'].includes(id)) {
+        return []; // No movie/series support
+    }
+
+    // Adult-only indexers
+    if (['ehentai', 'sukebei', 'sukebeinyaasi', 'pornrips', 'mypornclub', 'xxxtor', 'xxxclub', 'pornleech'].includes(id)) {
+        return []; // No regular content support
+    }
+
+    // Known anime-only indexers
+    if (['nyaasi', 'tokyotosho', 'anidex', 'anisource', 'shanaproject', 'dmhy', 'acgrip', 'bangumi-moe', 'mikan', 'nekobt'].includes(id)) {
+        return ['anime'];
+    }
+
+    // Known TV-only indexers
+    if (['eztv', 'showrss'].includes(id)) {
+        return ['series'];
+    }
+
+    // Known movie-only indexers
+    if (['yts', 'yts-mx', 'moviesdvdr'].includes(id)) {
+        return ['movie'];
+    }
+
+    // Default: if no specific types found, assume general purpose (movie + series)
+    if (contentTypes.size === 0) {
+        return ['movie', 'series'];
+    }
+
+    return Array.from(contentTypes);
+}
+
+export default { parseCardigannYaml, extractDomains, extractSearchConfig, extractContentTypes };

@@ -49,12 +49,98 @@ const CUSTOM_SCRAPERS = {
     'solidtorrents': { search: searchSolidTorrents, types: ['movie', 'series', 'anime'] },
 };
 
-// Indexers known to work well for specific content types
-const TYPE_PREFERENCES = {
-    movie: ['yts', '1337x', 'torrentgalaxyclone', 'thepiratebay', 'limetorrents', 'bitsearch'],
-    series: ['eztv', '1337x', 'torrentgalaxyclone', 'thepiratebay', 'showrss', 'bitsearch'],
-    anime: ['nyaasi', 'tokyotosho', 'anisource', 'shanaproject', 'dmhy', 'acgrip']
+// STRICT content type mapping - indexers MUST only be used for their supported types
+// This prevents anime/hentai/game indexers from being searched for movies
+const INDEXER_CONTENT_TYPES = {
+    // Movie indexers
+    'yts': ['movie'],
+    'yts-mx': ['movie'],
+
+    // TV/Series indexers
+    'eztv': ['series'],
+    'showrss': ['series'],
+    'showrss-yml': ['series'],
+
+    // Anime indexers
+    'nyaasi': ['anime'],
+    'tokyotosho': ['anime'],
+    'anidex': ['anime'],
+    'anisource': ['anime'],
+    'shanaproject': ['anime'],
+    'dmhy': ['anime'],
+    'acgrip': ['anime'],
+    'bangumi': ['anime'],
+
+    // Hentai/Adult - NEVER use for regular content
+    'ehentai': [],
+    'sukebei': [],
+    'pornleech': [],
+
+    // Games - NEVER use for movies/series
+    'catorrent': [],
+    'skidrowrepack': [],
+    'fitgirl': [],
+
+    // General purpose (movies + series)
+    '1337x': ['movie', 'series'],
+    'torrentgalaxyclone': ['movie', 'series'],
+    'thepiratebay': ['movie', 'series', 'anime'],
+    'limetorrents': ['movie', 'series'],
+    'bitsearch': ['movie', 'series', 'anime'],
+    'magnetdl': ['movie', 'series'],
+    'kickasstorrents': ['movie', 'series'],
+    'rarbg': ['movie', 'series'],
+    'solidtorrents': ['movie', 'series', 'anime'],
+    'btdig': ['movie', 'series', 'anime'],
+    'internetarchive': ['movie', 'series'],
+    'rutracker': ['movie', 'series', 'anime'],
+
+    // French
+    'cpasbienclone': ['movie', 'series'],
+    'yggtorrent': ['movie', 'series'],
+    'oxtorrent': ['movie', 'series'],
+
+    // Spanish
+    'mejortorrent': ['movie', 'series'],
+    'divxtotal': ['movie', 'series'],
+
+    // Russian
+    'rutor': ['movie', 'series'],
+    'kinozal': ['movie', 'series'],
+
+    // Magnet aggregators
+    'magnetcat': ['movie', 'series'],
+    'damagnet': ['movie', 'series'],
+    'megapeer': ['movie', 'series'],
 };
+
+// Fallback: indexers not in the list above are assumed general purpose
+const DEFAULT_CONTENT_TYPES = ['movie', 'series'];
+
+/**
+ * Check if an indexer supports a given content type
+ * Uses DB content types (from Prowlarr YAML) first, falls back to hardcoded map
+ * @param {string} indexerId - Indexer ID
+ * @param {string} contentType - Content type (movie, series, anime)
+ * @param {string[]|null} dbContentTypes - Content types from database (optional)
+ */
+function indexerSupportsType(indexerId, contentType, dbContentTypes = null) {
+    // Priority 1: Use database content types if available
+    if (dbContentTypes && Array.isArray(dbContentTypes)) {
+        // Empty array means indexer explicitly doesn't support any content (adult/games)
+        if (dbContentTypes.length === 0) return false;
+        return dbContentTypes.includes(contentType);
+    }
+
+    // Priority 2: Use hardcoded map as fallback
+    const supported = INDEXER_CONTENT_TYPES[indexerId];
+    if (supported === undefined) {
+        // Unknown indexer - assume general purpose but log warning
+        console.warn(`[RealTime] Unknown indexer "${indexerId}" - assuming general purpose`);
+        return DEFAULT_CONTENT_TYPES.includes(contentType);
+    }
+    return supported.includes(contentType);
+}
 
 /**
  * Real-time torrent search with health-prioritized indexers
@@ -174,27 +260,34 @@ async function searchSelectedProviders(params, selectedProviders) {
 
 /**
  * Search using health-prioritized indexers
+ * CRITICAL: Only uses indexers that support the requested content type
  */
 async function searchWithPriority(params, indexers) {
     const { imdbId, kitsuId, type, season, episode, title } = params;
     const allResults = [];
 
-    // Filter indexers by content type preference
-    const typePrefs = TYPE_PREFERENCES[type] || [];
-    const preferredIndexers = indexers.filter(idx =>
-        typePrefs.includes(idx.id) || idx.priority > 50
+    // STRICT TYPE FILTERING: Only use indexers that support this content type
+    // Uses DB content types (extracted from Prowlarr YAML) with hardcoded fallback
+    // This prevents anime/hentai/game indexers from being searched for movies
+    const compatibleIndexers = indexers.filter(idx =>
+        indexerSupportsType(idx.id, type, idx.contentTypes)
     );
-    const otherIndexers = indexers.filter(idx =>
-        !typePrefs.includes(idx.id) && idx.priority <= 50
-    );
+    const incompatibleCount = indexers.length - compatibleIndexers.length;
 
-    // Sort: type-preferred first, then by priority
-    const sortedIndexers = [
-        ...preferredIndexers.sort((a, b) => b.priority - a.priority),
-        ...otherIndexers.sort((a, b) => b.priority - a.priority)
-    ];
+    if (incompatibleCount > 0) {
+        const filtered = indexers.filter(idx => !indexerSupportsType(idx.id, type, idx.contentTypes));
+        console.log(`[RealTime] Filtered out ${incompatibleCount} indexers incompatible with "${type}": ${filtered.map(i => i.id).join(', ')}`);
+    }
 
-    console.log(`[RealTime] Searching ${sortedIndexers.length} indexers (${preferredIndexers.length} preferred for ${type})`);
+    if (compatibleIndexers.length === 0) {
+        console.log(`[RealTime] No compatible indexers for type "${type}", falling back to legacy`);
+        return searchLegacy(params);
+    }
+
+    // Sort by priority (best first)
+    const sortedIndexers = compatibleIndexers.sort((a, b) => b.priority - a.priority);
+
+    console.log(`[RealTime] Searching ${sortedIndexers.length} compatible indexers for ${type}`);
 
     // FAST TIER: Top priority indexers (priority > 60)
     const fastIndexers = sortedIndexers.filter(idx => idx.priority > 60).slice(0, 8);
