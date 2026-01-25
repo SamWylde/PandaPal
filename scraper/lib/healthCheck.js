@@ -479,7 +479,7 @@ export async function getWorkingIndexers(options = {}) {
     try {
         const { data, error } = await supabase
             .from('indexer_health')
-            .select('id, priority, success_rate, avg_response_ms, working_domain')
+            .select('id, priority, success_rate, avg_response_ms, working_domain, content_types')
             .eq('is_public', true)
             .eq('is_enabled', true)
             .gte('success_rate', minSuccessRate)  // Only return indexers that pass health threshold
@@ -498,7 +498,8 @@ export async function getWorkingIndexers(options = {}) {
             priority: row.priority,
             successRate: row.success_rate,
             avgResponseMs: row.avg_response_ms,
-            workingDomain: row.working_domain
+            workingDomain: row.working_domain,
+            contentTypes: row.content_types || ['movie', 'series']  // Default if not set
         }));
 
     } catch (err) {

@@ -119,8 +119,20 @@ const DEFAULT_CONTENT_TYPES = ['movie', 'series'];
 
 /**
  * Check if an indexer supports a given content type
+ * Uses DB content types (from Prowlarr YAML) first, falls back to hardcoded map
+ * @param {string} indexerId - Indexer ID
+ * @param {string} contentType - Content type (movie, series, anime)
+ * @param {string[]|null} dbContentTypes - Content types from database (optional)
  */
-function indexerSupportsType(indexerId, contentType) {
+function indexerSupportsType(indexerId, contentType, dbContentTypes = null) {
+    // Priority 1: Use database content types if available
+    if (dbContentTypes && Array.isArray(dbContentTypes)) {
+        // Empty array means indexer explicitly doesn't support any content (adult/games)
+        if (dbContentTypes.length === 0) return false;
+        return dbContentTypes.includes(contentType);
+    }
+
+    // Priority 2: Use hardcoded map as fallback
     const supported = INDEXER_CONTENT_TYPES[indexerId];
     if (supported === undefined) {
         // Unknown indexer - assume general purpose but log warning
@@ -255,12 +267,16 @@ async function searchWithPriority(params, indexers) {
     const allResults = [];
 
     // STRICT TYPE FILTERING: Only use indexers that support this content type
+    // Uses DB content types (extracted from Prowlarr YAML) with hardcoded fallback
     // This prevents anime/hentai/game indexers from being searched for movies
-    const compatibleIndexers = indexers.filter(idx => indexerSupportsType(idx.id, type));
+    const compatibleIndexers = indexers.filter(idx =>
+        indexerSupportsType(idx.id, type, idx.contentTypes)
+    );
     const incompatibleCount = indexers.length - compatibleIndexers.length;
 
     if (incompatibleCount > 0) {
-        console.log(`[RealTime] Filtered out ${incompatibleCount} indexers incompatible with "${type}"`);
+        const filtered = indexers.filter(idx => !indexerSupportsType(idx.id, type, idx.contentTypes));
+        console.log(`[RealTime] Filtered out ${incompatibleCount} indexers incompatible with "${type}": ${filtered.map(i => i.id).join(', ')}`);
     }
 
     if (compatibleIndexers.length === 0) {

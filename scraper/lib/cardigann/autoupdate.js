@@ -10,7 +10,8 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import { DefinitionSync } from './sync.js';
 import { saveScraperConfig } from '../db.js';
-import { parseCardigannYaml, extractDomains } from './parser.js';
+import { parseCardigannYaml, extractDomains, extractContentTypes } from './parser.js';
+import { supabase } from '../db.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -49,6 +50,35 @@ const SCRAPER_FILE_MAP = {
         transformDomain: (d) => d
     }
 };
+
+/**
+ * Update content_types in indexer_health table
+ * This ensures realtime search knows what content each indexer supports
+ */
+async function updateIndexerContentTypes(indexerId, contentTypes) {
+    if (!supabase) return false;
+
+    try {
+        // Upsert to indexer_health - will create if doesn't exist
+        const { error } = await supabase
+            .from('indexer_health')
+            .upsert({
+                id: indexerId,
+                content_types: contentTypes,
+                is_public: true,
+                updated_at: new Date().toISOString()
+            }, { onConflict: 'id' });
+
+        if (error) {
+            console.warn(`[AutoUpdate] Failed to update content_types for ${indexerId}: ${error.message}`);
+            return false;
+        }
+        return true;
+    } catch (err) {
+        console.warn(`[AutoUpdate] Error updating content_types for ${indexerId}: ${err.message}`);
+        return false;
+    }
+}
 
 /**
  * Auto-update all scraper files with latest domains from Prowlarr
@@ -92,20 +122,21 @@ export async function autoUpdateDomains(options = {}) {
                 continue;
             }
 
+            // Extract content types from the definition (movie, series, anime)
+            const contentTypes = extractContentTypes(fullConfig);
+
             // 1. Update Supabase (ALWAYS)
             // We do this for everyone, not just the mapped ones
             if (!dryRun) {
                 const dbSuccess = await saveScraperConfig(indexerId, fullConfig);
                 if (dbSuccess) {
-                    // Check if this was an update or new
-                    // For now just assume it worked.
-                    // To be cleaner we could check if domains changed but that requires fetching old config from DB.
-                    // Upsert is cheap enough.
+                    // Also update content_types in indexer_health table
+                    await updateIndexerContentTypes(indexerId, contentTypes);
                 } else {
                     results.errors.push({ indexerId, error: "Supabase save failed" });
                 }
             } else {
-                results.updated.push({ indexerId, dryRun: true, domains: newDomains });
+                results.updated.push({ indexerId, dryRun: true, domains: newDomains, contentTypes });
             }
 
             // 2. Update Local File (Legacy/Mapped Only)
