@@ -7,7 +7,7 @@
  * Based on Prowlarr's FlareSolverr integration pattern.
  */
 
-import { createClient } from '@supabase/supabase-js';
+import { supabase } from './db.js';
 
 // Dynamic import for puppeteer to handle stealth plugin issues
 let puppeteer;
@@ -38,10 +38,7 @@ async function getPuppeteer() {
     return puppeteer;
 }
 
-// Supabase client
-const supabaseUrl = process.env.SUPABASE_URL;
-const supabaseKey = process.env.SUPABASE_KEY;
-const supabase = (supabaseUrl && supabaseKey) ? createClient(supabaseUrl, supabaseKey) : null;
+// Supabase client (imported from db.js)
 
 // CF challenge detection patterns (from Prowlarr)
 const CF_CHALLENGE_TITLES = [

@@ -7,6 +7,7 @@
 
 import { DefinitionSync } from './sync.js';
 import { CardigannEngine } from './engine.js';
+import { getScraperConfig } from '../db.js';
 
 // Singleton instances
 let syncInstance = null;
@@ -19,19 +20,14 @@ let initialized = false;
 async function ensureInitialized() {
     if (initialized) return;
 
-    syncInstance = new DefinitionSync();
-    engineInstance = new CardigannEngine();
+    // Initialize singletons if needed
+    if (!syncInstance) syncInstance = new DefinitionSync();
+    if (!engineInstance) engineInstance = new CardigannEngine();
 
-    // Sync definitions (will use cache if recent)
-    try {
-        await syncInstance.sync();
-        initialized = true;
-        console.log('[Cardigann] System initialized');
-    } catch (error) {
-        console.error('[Cardigann] Failed to initialize:', error.message);
-        // Continue anyway - will use cached definitions if available
-        initialized = true;
-    }
+    // We NO LONGER auto-sync here during search.
+    // Syncing is handled by the health-check cron job.
+    // We only initialize the engine.
+    initialized = true;
 }
 
 /**
@@ -72,7 +68,43 @@ export async function getIndexerDomains(indexerId) {
 export async function searchWithCardigann(indexerId, query, options = {}) {
     await ensureInitialized();
 
-    const definition = await syncInstance.getDefinition(indexerId);
+    // 1. Try to get config from Database (Supabase)
+    // This is the "Hospital Standard" reliable path: Read from the Source of Truth maintained by Cron.
+    try {
+        const dbConfig = await getScraperConfig(indexerId);
+        if (dbConfig) {
+            // Found in DB! Use this directly. No GitHub sync needed.
+            const result = await engineInstance.search(dbConfig, query, options);
+            if (result.success) {
+                return result.results.map(r => ({
+                    ...r,
+                    imdbId: options.imdbId,
+                    type: options.type || 'movie'
+                }));
+            }
+            return []; // DB config existed but search returned nothing/failed
+        }
+    } catch (dbError) {
+        console.warn(`[Cardigann] Database lookup failed for ${indexerId}, falling back to local/sync: ${dbError.message}`);
+    }
+
+    // 2. Fallback: Local/Cached Definition (Legacy/Backup path)
+    // Only happens if DB is empty or unreachable.
+    // This parses the YAML file from cache (or downloads if missing).
+
+    // We might need to ensure sync was actually done if we are here?
+    // But we disabled auto-sync in ensureInitialized to stop the spam.
+    // So we check if we have the definition.
+    let definition = await syncInstance.getDefinition(indexerId);
+
+    // If missing, absolutely force a sync for this specific one (rare case)
+    if (!definition) {
+        // Double check if we need to sync
+        console.log(`[Cardigann] Definition missing for ${indexerId}, attempting emergency sync...`);
+        await syncInstance.sync(false); // sync if needed
+        definition = await syncInstance.getDefinition(indexerId);
+    }
+
     if (!definition) {
         console.error(`[Cardigann] No definition found for: ${indexerId}`);
         return [];
@@ -81,7 +113,6 @@ export async function searchWithCardigann(indexerId, query, options = {}) {
     const result = await engineInstance.search(definition, query, options);
 
     if (result.success) {
-        // Normalize results to match existing torrent format
         return result.results.map(r => ({
             ...r,
             imdbId: options.imdbId,

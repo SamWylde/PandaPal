@@ -1,15 +1,8 @@
-import { createClient } from '@supabase/supabase-js';
+import { supabase } from './db.js';
 
-const SUPABASE_URL = process.env.SUPABASE_URL;
-const SUPABASE_KEY = process.env.SUPABASE_KEY;
-
-if (!SUPABASE_URL || !SUPABASE_KEY) {
+if (!supabase) {
   console.log('Repository: SUPABASE_URL or SUPABASE_KEY is NOT set. Scraper will run without database persistence.');
-}
-
-const supabase = (SUPABASE_URL && SUPABASE_KEY) ? createClient(SUPABASE_URL, SUPABASE_KEY) : null;
-
-if (supabase) {
+} else {
   console.log('Repository: Supabase client initialized.');
 }
 

@@ -7,15 +7,16 @@
 
 import { createClient } from '@supabase/supabase-js';
 import axios from 'axios';
-import { getScraperConfig } from './db.js';
+import { getScraperConfig, supabase } from './db.js';
 import { PUBLIC_INDEXERS, DefinitionSync } from './cardigann/sync.js';
 import { parseCardigannYaml, extractSearchConfig } from './cardigann/parser.js';
 import { solveCFChallenge, getCachedSession, requestWithCFSession } from './cfSolver.js';
 import { autoUpdateDomains } from './cardigann/autoupdate.js';
 
-const supabaseUrl = process.env.SUPABASE_URL;
-const supabaseKey = process.env.SUPABASE_KEY;
-const supabase = (supabaseUrl && supabaseKey) ? createClient(supabaseUrl, supabaseKey) : null;
+const supabaseUrl = process.env.SUPABASE_URL; // Still needed for passed logic if any? 
+// Actually supabase instance is mostly used.
+
+// Test query values
 
 // Test query values
 const TEST_QUERY = 'Inception';
