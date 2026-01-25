@@ -5,6 +5,8 @@
  * Falls back to legacy scrapers if health data unavailable.
  *
  * Indexers are sorted by priority (calculated from success rate + speed).
+ *
+ * Hospital-grade reliability: All operations have timeouts to prevent hangs.
  */
 
 import { searchYTS } from './sources/yts.js';
@@ -17,6 +19,19 @@ import { searchSolidTorrents } from './sources/solidtorrents.js';
 import { getWorkingIndexers } from './healthCheck.js';
 import { searchWithCardigann } from './cardigann/search.js';
 import { getCachedSession } from './cfSolver.js';
+
+// Hospital-grade timeout: Ensures search never hangs
+const MAX_SEARCH_TIMEOUT_MS = 45000; // 45 seconds max for entire search
+
+const withTimeout = (promise, ms, fallback = []) => {
+    const timeout = new Promise((resolve) =>
+        setTimeout(() => {
+            console.warn(`[RealTime] Operation timed out after ${ms}ms, returning fallback`);
+            resolve(fallback);
+        }, ms)
+    );
+    return Promise.race([promise, timeout]);
+};
 
 // Map Prowlarr indexer IDs to legacy scraper functions
 // These are used when we have working domains from health checks
@@ -43,8 +58,20 @@ const TYPE_PREFERENCES = {
 
 /**
  * Real-time torrent search with health-prioritized indexers
+ * Wrapped with hospital-grade timeout to prevent hangs
  */
 export async function searchTorrents(params) {
+    return withTimeout(
+        searchTorrentsInternal(params),
+        MAX_SEARCH_TIMEOUT_MS,
+        [] // Return empty array on timeout
+    );
+}
+
+/**
+ * Internal search implementation
+ */
+async function searchTorrentsInternal(params) {
     const { imdbId, kitsuId, type, season, episode, title, providers, config } = params;
     const searchQuery = title || imdbId || kitsuId;
 

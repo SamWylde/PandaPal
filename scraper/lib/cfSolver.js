@@ -28,7 +28,8 @@ async function getPuppeteer() {
                 const chromium = await import('@sparticuz/chromium');
 
                 // Configuration for serverless
-                chromium.default.setHeadlessMode = 'shell';
+                // Use 'new' headless mode - harder for Cloudflare to detect than 'shell'
+                chromium.default.setHeadlessMode = 'new';
                 chromium.default.setGraphicsMode = false;
 
                 // Ensure stealth evasion modules are available in the bundle (Vercel fix)
@@ -263,8 +264,10 @@ async function waitForChallengeSolved(page, timeoutMs = 60000) {
     while (Date.now() - startTime < timeoutMs) {
         // Check if challenge is still present
         if (!(await hasCFChallenge(page))) {
-            // Wait a bit more to ensure page is fully loaded
-            await new Promise(r => setTimeout(r, 2000));
+            // Wait 7-8 seconds after challenge disappears (per Cloudflare bypass best practices)
+            // This ensures cf_clearance cookie is fully set before we extract cookies
+            console.log('[CFSolver] Challenge disappeared, waiting 8s for cookies to stabilize...');
+            await new Promise(r => setTimeout(r, 8000));
 
             // Double-check
             if (!(await hasCFChallenge(page))) {
@@ -312,6 +315,7 @@ export async function solveCFChallenge(url, options = {}) {
 
     // Need to solve with browser
     let browser = null;
+    let page = null;  // Track page for explicit cleanup
 
     try {
         // Get puppeteer instance (with or without stealth)
@@ -323,6 +327,16 @@ export async function solveCFChallenge(url, options = {}) {
 
         console.log(`[CFSolver] Launching browser... (stealth: ${stealthEnabled})`);
 
+        // Randomize viewport for fingerprint diversity (CF bypass best practice)
+        const viewports = [
+            { width: 1920, height: 1080 },
+            { width: 1366, height: 768 },
+            { width: 1536, height: 864 },
+            { width: 1440, height: 900 },
+            { width: 1280, height: 720 }
+        ];
+        const viewport = viewports[Math.floor(Math.random() * viewports.length)];
+
         browser = await pptr.launch({
             args: [
                 ...chromium.default.args,
@@ -333,13 +347,13 @@ export async function solveCFChallenge(url, options = {}) {
                 '--single-process',
                 '--no-zygote'
             ],
-            defaultViewport: { width: 1920, height: 1080 },
+            defaultViewport: viewport,
             executablePath: executablePath, // Use cached path
-            headless: 'shell',
+            headless: 'new', // Use new headless mode (harder for CF to detect than 'shell')
             timeout: 30000
         });
 
-        const page = await browser.newPage();
+        page = await browser.newPage();
 
         // Set a realistic user agent
         const userAgent = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36';
@@ -426,6 +440,14 @@ export async function solveCFChallenge(url, options = {}) {
             error: error.message
         };
     } finally {
+        // Hospital-grade cleanup: explicitly close page before browser
+        if (page) {
+            try {
+                await page.close();
+            } catch (e) {
+                console.log(`[CFSolver] Error closing page: ${e.message}`);
+            }
+        }
         if (browser) {
             try {
                 await browser.close();

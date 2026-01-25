@@ -9,25 +9,30 @@ import { DefinitionSync } from './sync.js';
 import { CardigannEngine } from './engine.js';
 import { getScraperConfig } from '../db.js';
 
-// Singleton instances
+// Singleton instances with promise-based lock to prevent race conditions
 let syncInstance = null;
 let engineInstance = null;
-let initialized = false;
+let initPromise = null;  // Hospital-grade: prevents concurrent initialization race
 
 /**
- * Initialize Cardigann system
+ * Initialize Cardigann system (thread-safe singleton pattern)
  */
 async function ensureInitialized() {
-    if (initialized) return;
+    // Fast path: already initialized
+    if (syncInstance && engineInstance) return;
 
-    // Initialize singletons if needed
-    if (!syncInstance) syncInstance = new DefinitionSync();
-    if (!engineInstance) engineInstance = new CardigannEngine();
+    // Singleton lock: only one initialization can happen
+    if (!initPromise) {
+        initPromise = (async () => {
+            // Double-check inside lock
+            if (!syncInstance) syncInstance = new DefinitionSync();
+            if (!engineInstance) engineInstance = new CardigannEngine();
+            // We NO LONGER auto-sync here during search.
+            // Syncing is handled by the health-check cron job.
+        })();
+    }
 
-    // We NO LONGER auto-sync here during search.
-    // Syncing is handled by the health-check cron job.
-    // We only initialize the engine.
-    initialized = true;
+    await initPromise;
 }
 
 /**
@@ -124,21 +129,31 @@ export async function searchWithCardigann(indexerId, query, options = {}) {
 }
 
 /**
- * Search multiple indexers in parallel
+ * Search multiple indexers with concurrency limit (hospital-grade rate limiting)
+ * @param {number} concurrency - Max concurrent requests (default 6)
  */
 export async function searchMultipleIndexers(indexerIds, query, options = {}) {
     await ensureInitialized();
 
-    const promises = indexerIds.map(id =>
-        searchWithCardigann(id, query, options)
-            .catch(err => {
-                console.error(`[Cardigann] ${id} search failed:`, err.message);
-                return [];
-            })
-    );
+    const MAX_CONCURRENT = 6;  // Hospital-grade: prevent rate limiting and resource exhaustion
+    const results = [];
 
-    const results = await Promise.all(promises);
-    return results.flat();
+    // Process in batches to prevent overwhelming servers
+    for (let i = 0; i < indexerIds.length; i += MAX_CONCURRENT) {
+        const batch = indexerIds.slice(i, i + MAX_CONCURRENT);
+        const batchPromises = batch.map(id =>
+            searchWithCardigann(id, query, options)
+                .catch(err => {
+                    console.error(`[Cardigann] ${id} search failed:`, err.message);
+                    return [];
+                })
+        );
+
+        const batchResults = await Promise.all(batchPromises);
+        results.push(...batchResults.flat());
+    }
+
+    return results;
 }
 
 /**

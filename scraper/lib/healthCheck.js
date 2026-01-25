@@ -374,13 +374,25 @@ async function updateHealthMetrics(indexerId, success, responseTime, workingDoma
  * To prevent Vercel timeouts, we only check the 10 oldest/unchecked indexers per run.
  * With an hourly cron, this covers 240 indexers/day.
  */
+// Hospital-grade timeout wrapper
+const withTimeout = (promise, ms, errorMsg) => {
+    const timeout = new Promise((_, reject) =>
+        setTimeout(() => reject(new Error(errorMsg)), ms)
+    );
+    return Promise.race([promise, timeout]);
+};
+
 export async function runHealthChecks() {
     console.log('[HealthCheck] Starting health check job...');
 
-    // 1. Ensure definitions are synced
+    // 1. Ensure definitions are synced (with timeout to prevent GitHub hangs)
     try {
         console.log('[HealthCheck] Syncing definitions & updating DB...');
-        await autoUpdateDomains({ dryRun: false, verbose: false });
+        await withTimeout(
+            autoUpdateDomains({ dryRun: false, verbose: false }),
+            30000, // 30 second timeout for GitHub sync (network can be slow)
+            'Definition sync timed out after 30s'
+        );
     } catch (syncError) {
         console.error(`[HealthCheck] Failed to sync definitions: ${syncError.message}`);
     }
@@ -389,10 +401,18 @@ export async function runHealthChecks() {
     let candidates = [];
 
     if (supabase) {
-        // Fetch current health status
-        const { data: healthData, error } = await supabase
-            .from('indexer_health')
-            .select('id, last_check');
+        // Fetch current health status (with timeout to prevent hangs)
+        let healthData = null;
+        try {
+            const dbResult = await withTimeout(
+                supabase.from('indexer_health').select('id, last_check'),
+                10000, // 10 second timeout for DB query
+                'DB query timed out'
+            );
+            healthData = dbResult.data;
+        } catch (dbErr) {
+            console.error(`[HealthCheck] Failed to fetch health status: ${dbErr.message}`);
+        }
 
         const dbMap = new Map((healthData || []).map(r => [r.id, r.last_check]));
 
@@ -462,7 +482,7 @@ export async function getWorkingIndexers(options = {}) {
             .select('id, priority, success_rate, avg_response_ms, working_domain')
             .eq('is_public', true)
             .eq('is_enabled', true)
-            // Relaxed constraints for now
+            .gte('success_rate', minSuccessRate)  // Only return indexers that pass health threshold
             .order('priority', { ascending: false })
             .limit(limit);
 
