@@ -288,12 +288,13 @@ async function waitForChallengeSolved(page, timeoutMs = 60000) {
  *
  * @param {string} url - The URL to solve CF challenge for
  * @param {object} options - Options
- * @param {number} options.timeout - Timeout in ms (default 120000)
+ * @param {number} options.timeout - Timeout in ms (default 60000)
  * @param {boolean} options.useCache - Whether to check cache first (default true)
  * @returns {Promise<{success: boolean, cookies?: array, userAgent?: string, error?: string}>}
  */
 export async function solveCFChallenge(url, options = {}) {
     const { timeout = 60000, useCache = true } = options;
+    const startTime = Date.now();
     console.log(`[CFSolver] Solving for ${url} (timeout: ${timeout}ms)`);
     const domain = extractDomain(url);
 
@@ -379,7 +380,12 @@ export async function solveCFChallenge(url, options = {}) {
         if (hasChallenge) {
             console.log('[CFSolver] CF challenge detected, waiting for solution...');
 
-            const solved = await waitForChallengeSolved(page, timeout - 30000);
+            // Calculate remaining time, with minimum of 30s for challenge solving
+            const elapsedMs = Date.now() - startTime;
+            const remainingMs = Math.max(30000, timeout - elapsedMs);
+            console.log(`[CFSolver] Challenge timeout: ${remainingMs}ms (elapsed: ${elapsedMs}ms)`);
+
+            const solved = await waitForChallengeSolved(page, remainingMs);
 
             if (!solved) {
                 throw new Error('Challenge timeout - could not solve within time limit');
