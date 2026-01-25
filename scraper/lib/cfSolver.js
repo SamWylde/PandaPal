@@ -60,6 +60,15 @@ async function getPuppeteer() {
                 // Initialize plugins
                 puppeteer = puppeteerExtra.default;
                 puppeteer.use(StealthPlugin.default());
+
+                // Explicitly use UserPreferences to satisfy dependency check
+                try {
+                    const UserPreferencesPlugin = await import('puppeteer-extra-plugin-user-preferences');
+                    puppeteer.use(UserPreferencesPlugin.default());
+                } catch (prefErr) {
+                    console.warn('[CFSolver] UserPreferences import failed:', prefErr.message);
+                }
+
                 stealthEnabled = true;
 
                 // CRITICAL: Get executable path ONCE here to prevent race condition during extraction
