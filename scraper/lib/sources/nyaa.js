@@ -1,6 +1,29 @@
 import axios from 'axios';
+import { getScraperConfig } from '../db.js';
 
-const NYAA_API_BASE = 'https://nyaa.si';
+const NYAA_FALLBACK = ['https://nyaa.si'];
+
+let cachedDomains = null;
+
+async function getDomains() {
+    if (cachedDomains) return cachedDomains;
+
+    try {
+        const config = await getScraperConfig('nyaasi');
+        if (config && config.domains && Array.isArray(config.domains) && config.domains.length > 0) {
+            cachedDomains = config.domains;
+            console.log(`[Nyaa] Loaded ${cachedDomains.length} domains from DB`);
+        } else {
+            cachedDomains = NYAA_FALLBACK;
+            console.log(`[Nyaa] Using fallback domains`);
+        }
+    } catch (e) {
+        console.error(`[Nyaa] Failed to load config: ${e.message}`);
+        cachedDomains = NYAA_FALLBACK;
+    }
+
+    return cachedDomains;
+}
 
 /**
  * Search Nyaa for anime by Kitsu ID or title
@@ -10,24 +33,29 @@ const NYAA_API_BASE = 'https://nyaa.si';
  * @returns {Promise<Array>} Array of torrent objects
  */
 export async function searchNyaa(kitsuId, title, episode) {
-    try {
-        // Nyaa doesn't have a proper API, but we can use RSS/search
-        // Search by title since Nyaa doesn't support Kitsu IDs directly
-        const searchQuery = episode ? `${title} ${episode}` : title;
+    const domains = await getDomains();
 
-        const response = await axios.get(`${NYAA_API_BASE}/?page=rss&q=${encodeURIComponent(searchQuery)}&c=1_2&f=0`, {
-            timeout: 5000
-        });
+    for (const domain of domains) {
+        try {
+            // Nyaa doesn't have a proper API, but we can use RSS/search
+            // Search by title since Nyaa doesn't support Kitsu IDs directly
+            const searchQuery = episode ? `${title} ${episode}` : title;
 
-        // Parse RSS XML response
-        const torrents = parseNyaaRSS(response.data, kitsuId, episode);
+            const response = await axios.get(`${domain}/?page=rss&q=${encodeURIComponent(searchQuery)}&c=1_2&f=0`, {
+                timeout: 5000
+            });
 
-        console.log(`Nyaa: Found ${torrents.length} torrents for ${title}`);
-        return torrents;
-    } catch (error) {
-        console.error(`Nyaa search failed for ${title}:`, error.message);
-        return [];
+            // Parse RSS XML response
+            const torrents = parseNyaaRSS(response.data, kitsuId, episode);
+
+            console.log(`Nyaa: Found ${torrents.length} torrents for ${title}`);
+            return torrents;
+        } catch (error) {
+            console.error(`Nyaa (${domain}) search failed for ${title}:`, error.message);
+            // Continue to next domain
+        }
     }
+    return [];
 }
 
 function parseNyaaRSS(xml, kitsuId, episode) {

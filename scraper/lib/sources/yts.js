@@ -1,12 +1,34 @@
 import axios from 'axios';
+import { getScraperConfig } from '../db.js';
 
-// Fallback domains for YTS in case primary fails
-// Updated 2026-01-24 - yts.mx and yts.lt are most reliable
-const YTS_DOMAINS = [
+// Fallback domains for YTS
+const YTS_FALLBACK = [
     'https://yts.mx/api/v2',
     'https://yts.lt/api/v2',
     'https://yts.am/api/v2'
 ];
+
+let cachedDomains = null;
+
+async function getDomains() {
+    if (cachedDomains) return cachedDomains;
+
+    try {
+        const config = await getScraperConfig('yts');
+        if (config && config.domains && Array.isArray(config.domains) && config.domains.length > 0) {
+            cachedDomains = config.domains;
+            console.log(`[YTS] Loaded ${cachedDomains.length} domains from DB`);
+        } else {
+            cachedDomains = YTS_FALLBACK;
+            console.log(`[YTS] Using fallback domains`);
+        }
+    } catch (e) {
+        console.error(`[YTS] Failed to load config: ${e.message}`);
+        cachedDomains = YTS_FALLBACK;
+    }
+
+    return cachedDomains;
+}
 
 /**
  * Format error details for debugging
@@ -68,9 +90,10 @@ async function retryWithBackoff(fn, retries = 2, delay = 1000, context = '') {
  */
 export async function searchYTS(imdbId) {
     const errors = [];
+    const domains = await getDomains();
 
     // Try each domain with retry logic
-    for (const apiBase of YTS_DOMAINS) {
+    for (const apiBase of domains) {
         const requestUrl = `${apiBase}/list_movies.json?query_term=${imdbId}`;
         try {
             const response = await retryWithBackoff(

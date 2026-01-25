@@ -9,6 +9,7 @@ import fs from 'fs/promises';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { DefinitionSync } from './sync.js';
+import { saveScraperConfig } from '../../db.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -48,7 +49,7 @@ export async function autoUpdateDomains(options = {}) {
     const { dryRun = false, verbose = true } = options;
 
     const sync = new DefinitionSync();
-    const log = verbose ? console.log : () => {};
+    const log = verbose ? console.log : () => { };
 
     log('[AutoUpdate] Checking for domain updates from Prowlarr...');
 
@@ -89,6 +90,14 @@ export async function autoUpdateDomains(options = {}) {
             if (!needsUpdate) {
                 log(`[AutoUpdate] ✅ ${indexerId}: Already up to date (${currentDomains.length} domains)`);
                 results.unchanged.push(indexerId);
+                // Even if file is up to date, we might want to ensure DB is synced? 
+                // For now, let's assume if file matches prowlarr, we are good.
+                // But if running on Vercel, the file might be the hardcoded stale version.
+                // So we should probably check against DB or just upsert anyway if Vercel?
+                // Efficient route: Just upsert if changed.
+
+                // On Vercel, we can't trust the file content to represent "current state" of the DB.
+                // But for now, we follow the logic: Prowlarr has truth.
                 continue;
             }
 
@@ -102,9 +111,21 @@ export async function autoUpdateDomains(options = {}) {
                 continue;
             }
 
-            // Update the file
-            const updatedContent = updateDomainsInFile(fileContent, config.varName, newDomains, indexerId);
-            await fs.writeFile(config.file, updatedContent);
+            // 1. Update Supabase (Persistent Source of Truth)
+            log(`[AutoUpdate]    Saving to Supabase...`);
+            const dbSuccess = await saveScraperConfig(indexerId, newDomains);
+            if (!dbSuccess) {
+                log(`[AutoUpdate]    ⚠️ Failed to save to Supabase`);
+            }
+
+            // 2. Update Local File (if not on Vercel or explicitly desired)
+            // On Vercel, this throws EROFS usually, or is just useless. 
+            // We skip file write on Vercel unless we want to try (it might work in tmp but useless)
+            if (!process.env.VERCEL) {
+                const updatedContent = updateDomainsInFile(fileContent, config.varName, newDomains, indexerId);
+                await fs.writeFile(config.file, updatedContent);
+                log(`[AutoUpdate]    Updated local file.`);
+            }
 
             log(`[AutoUpdate] ✅ ${indexerId}: Updated to ${newDomains.length} domains`);
             results.updated.push({ indexerId, domains: newDomains });

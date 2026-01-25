@@ -1,14 +1,37 @@
 import * as cheerio from 'cheerio';
 import { performRequest } from '../requestHelper.js';
+import { getScraperConfig } from '../db.js';
 
 // Fallback domains for 1337x
-const T1337X_DOMAINS = [
+const T1337X_FALLBACK = [
     'https://1337x.to',
     'https://1337x.st',
     'https://www.1337xx.to',
     'https://x1337x.eu',
     'https://1337xto.to'
 ];
+
+let cachedDomains = null;
+
+async function getDomains() {
+    if (cachedDomains) return cachedDomains;
+
+    try {
+        const config = await getScraperConfig('1337x');
+        if (config && config.domains && Array.isArray(config.domains) && config.domains.length > 0) {
+            cachedDomains = config.domains;
+            console.log(`[1337x] Loaded ${cachedDomains.length} domains from DB`);
+        } else {
+            cachedDomains = T1337X_FALLBACK;
+            console.log(`[1337x] Using fallback domains`);
+        }
+    } catch (e) {
+        console.error(`[1337x] Failed to load config: ${e.message}`);
+        cachedDomains = T1337X_FALLBACK;
+    }
+
+    return cachedDomains;
+}
 
 /**
  * Search 1337x for torrents by IMDB ID or title
@@ -18,9 +41,10 @@ const T1337X_DOMAINS = [
  */
 export async function search1337x(query, type) {
     const errors = [];
+    const domains = await getDomains();
 
     // Try each domain 
-    for (const baseUrl of T1337X_DOMAINS) {
+    for (const baseUrl of domains) {
         const searchUrl = `${baseUrl}/search/${encodeURIComponent(query)}/1/`;
         try {
             // performRequest handles Cloudflare detection and browser fallback

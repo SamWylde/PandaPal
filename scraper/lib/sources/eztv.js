@@ -1,6 +1,29 @@
 import axios from 'axios';
+import { getScraperConfig } from '../db.js';
 
-const EZTV_API_BASE = 'https://eztvx.to/api';
+const EZTV_FALLBACK = ['https://eztvx.to/api'];
+
+let cachedDomains = null;
+
+async function getDomains() {
+    if (cachedDomains) return cachedDomains;
+
+    try {
+        const config = await getScraperConfig('eztv');
+        if (config && config.domains && Array.isArray(config.domains) && config.domains.length > 0) {
+            cachedDomains = config.domains;
+            console.log(`[EZTV] Loaded ${cachedDomains.length} domains from DB`);
+        } else {
+            cachedDomains = EZTV_FALLBACK;
+            console.log(`[EZTV] Using fallback domains`);
+        }
+    } catch (e) {
+        console.error(`[EZTV] Failed to load config: ${e.message}`);
+        cachedDomains = EZTV_FALLBACK;
+    }
+
+    return cachedDomains;
+}
 
 /**
  * Search EZTV for TV series by IMDB ID
@@ -10,46 +33,53 @@ const EZTV_API_BASE = 'https://eztvx.to/api';
  * @returns {Promise<Array>} Array of torrent objects
  */
 export async function searchEZTV(imdbId, season, episode) {
-    try {
-        // EZTV expects numeric IMDB ID without 'tt' prefix
-        const numericId = imdbId.replace('tt', '');
+    const domains = await getDomains();
 
-        const response = await axios.get(`${EZTV_API_BASE}/get-torrents`, {
-            params: { imdb_id: numericId, limit: 100 },
-            timeout: 5000
-        });
+    for (const domain of domains) {
+        try {
+            // EZTV expects numeric IMDB ID without 'tt' prefix
+            const numericId = imdbId.replace('tt', '');
 
-        let torrents = response.data?.torrents || [];
+            const response = await axios.get(`${domain}/get-torrents`, {
+                params: { imdb_id: numericId, limit: 100 },
+                timeout: 5000
+            });
 
-        // Filter by season/episode if provided
-        if (season !== undefined) {
-            torrents = torrents.filter(t => t.season === season);
+            let torrents = response.data?.torrents || [];
+
+            // Filter by season/episode if provided
+            if (season !== undefined) {
+                torrents = torrents.filter(t => t.season === season);
+            }
+            if (episode !== undefined) {
+                torrents = torrents.filter(t => t.episode === episode);
+            }
+
+            const results = torrents.map(torrent => ({
+                infoHash: torrent.hash?.toLowerCase(),
+                provider: 'eztv',
+                title: torrent.title || torrent.filename,
+                size: torrent.size_bytes,
+                type: 'series',
+                uploadDate: new Date(torrent.date_released_unix * 1000),
+                seeders: torrent.seeds,
+                resolution: extractResolution(torrent.title),
+                imdbId: imdbId,
+                imdbSeason: torrent.season,
+                imdbEpisode: torrent.episode,
+                magnetUrl: torrent.magnet_url
+            }));
+
+            console.log(`EZTV: Found ${results.length} torrents for ${imdbId} S${season}E${episode}`);
+            return results;
+        } catch (error) {
+            console.error(`EZTV search failed for ${imdbId}:`, error.message);
+            // Continue to next domain
+            continue;
         }
-        if (episode !== undefined) {
-            torrents = torrents.filter(t => t.episode === episode);
-        }
-
-        const results = torrents.map(torrent => ({
-            infoHash: torrent.hash?.toLowerCase(),
-            provider: 'eztv',
-            title: torrent.title || torrent.filename,
-            size: torrent.size_bytes,
-            type: 'series',
-            uploadDate: new Date(torrent.date_released_unix * 1000),
-            seeders: torrent.seeds,
-            resolution: extractResolution(torrent.title),
-            imdbId: imdbId,
-            imdbSeason: torrent.season,
-            imdbEpisode: torrent.episode,
-            magnetUrl: torrent.magnet_url
-        }));
-
-        console.log(`EZTV: Found ${results.length} torrents for ${imdbId} S${season}E${episode}`);
-        return results;
-    } catch (error) {
-        console.error(`EZTV search failed for ${imdbId}:`, error.message);
-        return [];
     }
+
+    return [];
 }
 
 function extractResolution(title) {

@@ -1,15 +1,37 @@
 import * as cheerio from 'cheerio';
 import { parseSize, extractResolution } from '../titleHelper.js';
 import { performRequest } from '../requestHelper.js';
+import { getScraperConfig } from '../db.js';
 
-const SOLID_DOMAINS = [
-    'https://solidtorrents.to'
-];
+const SOLID_FALLBACK = ['https://solidtorrents.to'];
+
+let cachedDomains = null;
+
+async function getDomains() {
+    if (cachedDomains) return cachedDomains;
+
+    try {
+        const config = await getScraperConfig('solidtorrents');
+        if (config && config.domains && Array.isArray(config.domains) && config.domains.length > 0) {
+            cachedDomains = config.domains;
+            console.log(`[SolidTorrents] Loaded ${cachedDomains.length} domains from DB`);
+        } else {
+            cachedDomains = SOLID_FALLBACK;
+            console.log(`[SolidTorrents] Using fallback domains`);
+        }
+    } catch (e) {
+        console.error(`[SolidTorrents] Failed to load config: ${e.message}`);
+        cachedDomains = SOLID_FALLBACK;
+    }
+
+    return cachedDomains;
+}
 
 export async function searchSolidTorrents(query, skipBrowser = false) {
     const torrents = [];
+    const domains = await getDomains();
 
-    for (const domain of SOLID_DOMAINS) {
+    for (const domain of domains) {
         try {
             const url = `${domain}/search?q=${encodeURIComponent(query)}`;
             // performRequest handles Cloudflare detection and browser fallback

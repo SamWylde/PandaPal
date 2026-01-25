@@ -1,16 +1,38 @@
 import * as cheerio from 'cheerio';
 import { parseSize, extractResolution } from '../titleHelper.js';
 import { performRequest } from '../requestHelper.js';
+import { getScraperConfig } from '../db.js';
 
-const BITSEARCH_DOMAINS = [
-    'https://bitsearch.to'
-];
+const BITSEARCH_FALLBACK = ['https://bitsearch.to'];
+
+let cachedDomains = null;
+
+async function getDomains() {
+    if (cachedDomains) return cachedDomains;
+
+    try {
+        const config = await getScraperConfig('bitsearch');
+        if (config && config.domains && Array.isArray(config.domains) && config.domains.length > 0) {
+            cachedDomains = config.domains;
+            console.log(`[BitSearch] Loaded ${cachedDomains.length} domains from DB`);
+        } else {
+            cachedDomains = BITSEARCH_FALLBACK;
+            console.log(`[BitSearch] Using fallback domains`);
+        }
+    } catch (e) {
+        console.error(`[BitSearch] Failed to load config: ${e.message}`);
+        cachedDomains = BITSEARCH_FALLBACK;
+    }
+
+    return cachedDomains;
+}
 
 export async function searchBitSearch(query, skipBrowser = false) {
     const torrents = [];
     const errors = [];
+    const domains = await getDomains();
 
-    for (const domain of BITSEARCH_DOMAINS) {
+    for (const domain of domains) {
         try {
             const url = `${domain}/search?q=${encodeURIComponent(query)}`;
             // performRequest handles Cloudflare detection and browser fallback

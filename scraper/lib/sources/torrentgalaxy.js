@@ -1,13 +1,36 @@
 import * as cheerio from 'cheerio';
 import { performRequest } from '../requestHelper.js';
+import { getScraperConfig } from '../db.js';
 
 // Fallback domains for TorrentGalaxy
-const TG_DOMAINS = [
+const TG_FALLBACK = [
     'https://tgx.rs',
     'https://torrentgalaxy.one',
     'https://torrentgalaxy.to',
     'https://torrentgalaxy.mx'
 ];
+
+let cachedDomains = null;
+
+async function getDomains() {
+    if (cachedDomains) return cachedDomains;
+
+    try {
+        const config = await getScraperConfig('torrentgalaxy');
+        if (config && config.domains && Array.isArray(config.domains) && config.domains.length > 0) {
+            cachedDomains = config.domains;
+            console.log(`[TorrentGalaxy] Loaded ${cachedDomains.length} domains from DB`);
+        } else {
+            cachedDomains = TG_FALLBACK;
+            console.log(`[TorrentGalaxy] Using fallback domains`);
+        }
+    } catch (e) {
+        console.error(`[TorrentGalaxy] Failed to load config: ${e.message}`);
+        cachedDomains = TG_FALLBACK;
+    }
+
+    return cachedDomains;
+}
 
 /**
  * Search TorrentGalaxy for torrents by IMDB ID or title
@@ -17,9 +40,10 @@ const TG_DOMAINS = [
  */
 export async function searchTorrentGalaxy(imdbId, type) {
     const errors = [];
+    const domains = await getDomains();
 
     // Try each domain 
-    for (const baseUrl of TG_DOMAINS) {
+    for (const baseUrl of domains) {
         const searchUrl = `${baseUrl}/torrents.php?search=${encodeURIComponent(imdbId)}`;
         try {
             // performRequest handles Cloudflare detection and browser fallback
