@@ -20,32 +20,62 @@ export class CardigannEngine {
     /**
      * Execute a search using a Cardigann definition
      * @param {string|Object} yamlContentOrParsed - Either raw YAML string or already-parsed definition object
-     * @param {string} options.workingDomain - Known working domain from health check (prioritized)
+     * @param {string} options.workingDomain - Known working domain from health check (ONLY this domain will be tried)
      */
     async search(yamlContentOrParsed, query, options = {}) {
         // Support both raw YAML strings (from file/sync) and pre-parsed objects (from database)
         const definition = typeof yamlContentOrParsed === 'string'
             ? parseCardigannYaml(yamlContentOrParsed)
             : yamlContentOrParsed;
-        let domains = extractDomains(definition);
         const searchConfig = extractSearchConfig(definition);
-
         const indexerId = definition.id || 'unknown';
-        const errors = [];
-        const emptyDomains = []; // Track domains that returned 0 results (not errors)
 
-        // OPTIMIZATION: If we have a known working domain from health check, try it first
-        // This dramatically reduces failed requests during real-time search
+        // CRITICAL OPTIMIZATION: If health check provided a working domain, ONLY use that domain.
+        // Don't fall back to trying all 20+ domains - that's wasteful and slow.
+        // The health check runs hourly and tells us which domain works.
+        // If the working domain fails, the whole indexer is likely having issues.
         if (options.workingDomain) {
             const workingDomain = options.workingDomain;
-            // Move working domain to the front of the list
-            domains = [workingDomain, ...domains.filter(d => d !== workingDomain)];
-            console.log(`[Cardigann:${indexerId}] Prioritizing known working domain: ${workingDomain}`);
+            console.log(`[Cardigann:${indexerId}] Using health check domain: ${workingDomain}`);
+
+            try {
+                const results = await this.executeSearch(
+                    workingDomain,
+                    searchConfig,
+                    query,
+                    definition,
+                    options
+                );
+
+                // Return results (even if empty - indexer works but has no content for this query)
+                console.log(`[Cardigann:${indexerId}] Found ${results.length} results from ${workingDomain}`);
+                return {
+                    success: true,
+                    results,
+                    domain: workingDomain,
+                    indexer: indexerId
+                };
+            } catch (error) {
+                // Working domain failed - don't try others, just report failure
+                // Health check will update the working domain on next run
+                console.log(`[Cardigann:${indexerId}] Health check domain failed: ${error.message}`);
+                return {
+                    success: false,
+                    results: [],
+                    errors: [this.formatError(error, workingDomain)],
+                    indexer: indexerId
+                };
+            }
         }
 
-        console.log(`[Cardigann:${indexerId}] Starting search with ${domains.length} domains`);
+        // FALLBACK MODE: No health check data - try all domains from definition
+        // This only happens for indexers that haven't been health-checked yet
+        const domains = extractDomains(definition);
+        const errors = [];
+        const emptyDomains = [];
 
-        // Try each domain
+        console.log(`[Cardigann:${indexerId}] No health data, trying ${domains.length} domains...`);
+
         for (const domain of domains) {
             try {
                 const results = await this.executeSearch(
@@ -66,7 +96,6 @@ export class CardigannEngine {
                     };
                 }
 
-                // Domain returned successfully but with 0 results
                 emptyDomains.push(domain);
             } catch (error) {
                 const errorInfo = this.formatError(error, domain);

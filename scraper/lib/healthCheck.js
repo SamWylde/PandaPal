@@ -11,7 +11,7 @@ import { getScraperConfig, supabase } from './db.js';
 import { PUBLIC_INDEXERS, DefinitionSync } from './cardigann/sync.js';
 import { parseCardigannYaml, extractSearchConfig } from './cardigann/parser.js';
 import { solveCFChallenge, getCachedSession, requestWithCFSession } from './cfSolver.js';
-import { autoUpdateDomains } from './cardigann/autoupdate.js';
+// NOTE: autoUpdateDomains is now called by separate /api/cron/prowlarr-update endpoint
 
 const supabaseUrl = process.env.SUPABASE_URL; // Still needed for passed logic if any? 
 // Actually supabase instance is mostly used.
@@ -225,7 +225,7 @@ async function checkIndexer(indexerId) {
                 if (blockType.toLowerCase().includes('cloudflare')) {
                     console.log(`[HealthCheck] ${indexerId}: Attempting CF bypass...`);
                     try {
-                        const cfResult = await solveCFChallenge(testUrl, { timeout: 30000 });
+                        const cfResult = await solveCFChallenge(testUrl, { timeout: 60000 });
                         if (cfResult.success) {
                             // Retry with CF cookies
                             console.log(`[HealthCheck] ${indexerId}: CF solved, retrying with cookies...`);
@@ -385,19 +385,10 @@ const withTimeout = (promise, ms, errorMsg) => {
 export async function runHealthChecks() {
     console.log('[HealthCheck] Starting health check job...');
 
-    // 1. Ensure definitions are synced (with timeout to prevent GitHub hangs)
-    try {
-        console.log('[HealthCheck] Syncing definitions & updating DB...');
-        await withTimeout(
-            autoUpdateDomains({ dryRun: false, verbose: false }),
-            60000, // 60 second timeout - sync takes ~16s + DB saves for 95+ indexers
-            'Definition sync timed out after 60s'
-        );
-    } catch (syncError) {
-        console.error(`[HealthCheck] Failed to sync definitions: ${syncError.message}`);
-    }
+    // NOTE: Definition sync is now handled by separate /api/cron/prowlarr-update endpoint
+    // This gives us more time to test actual URLs instead of waiting for GitHub sync
 
-    // 2. Identify which indexers to check (Priority: Never checked > Oldest checked)
+    // 1. Identify which indexers to check (Priority: Never checked > Oldest checked)
     let candidates = [];
 
     if (supabase) {
@@ -434,7 +425,8 @@ export async function runHealthChecks() {
     }
 
     // 3. Select top 10
-    const BATCH_SIZE = 10;
+    // 5 indexers per run, runs every 30 min = 10/hour = 240/day coverage
+    const BATCH_SIZE = 5;
     const batch = candidates.slice(0, BATCH_SIZE);
 
     console.log(`[HealthCheck] Processing batch of ${batch.length} indexers (out of ${PUBLIC_INDEXERS.length} total)`);
@@ -443,24 +435,34 @@ export async function runHealthChecks() {
     const results = {};
 
     // 4. Run checks (Sequentially 1 by 1)
+    // CRITICAL: Save to DB immediately after each check so data is preserved if job times out
     // We run sequentially to avoid triggering Cloudflare rate limits and to save Vercel memory.
+    let completed = 0;
     for (const candidate of batch) {
         try {
-            console.log(`[HealthCheck] Checking ${candidate.id}...`);
+            console.log(`[HealthCheck] [${completed + 1}/${batch.length}] Checking ${candidate.id}...`);
             const result = await checkIndexer(candidate.id);
             results[candidate.id] = result;
 
-            // Save to DB (Update last_check)
-            await updateHealthMetrics(candidate.id, result.success, result.responseTime, result.workingDomain, result.error);
+            // Save to DB IMMEDIATELY after each check (data preserved even if job times out later)
+            try {
+                await updateHealthMetrics(candidate.id, result.success, result.responseTime, result.workingDomain, result.error);
+                completed++;
+                console.log(`[HealthCheck] [${completed}/${batch.length}] Saved ${candidate.id}: ${result.success ? 'OK' : 'FAIL'}`);
+            } catch (dbErr) {
+                console.error(`[HealthCheck] DB save failed for ${candidate.id}: ${dbErr.message}`);
+                // Continue to next indexer even if DB save fails
+            }
 
             // Small delay between checks to be "nice"
             await new Promise(r => setTimeout(r, 1000));
         } catch (err) {
-            console.error(`[HealthCheck] Critical error checking ${candidate.id}:`, err);
+            console.error(`[HealthCheck] Critical error checking ${candidate.id}:`, err.message);
+            // Continue to next indexer even if one fails completely
         }
     }
 
-    console.log('[HealthCheck] Batch complete.');
+    console.log(`[HealthCheck] Batch complete: ${completed}/${batch.length} saved to DB`);
     return results;
 }
 
