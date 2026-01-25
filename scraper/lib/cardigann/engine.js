@@ -20,18 +20,28 @@ export class CardigannEngine {
     /**
      * Execute a search using a Cardigann definition
      * @param {string|Object} yamlContentOrParsed - Either raw YAML string or already-parsed definition object
+     * @param {string} options.workingDomain - Known working domain from health check (prioritized)
      */
     async search(yamlContentOrParsed, query, options = {}) {
         // Support both raw YAML strings (from file/sync) and pre-parsed objects (from database)
         const definition = typeof yamlContentOrParsed === 'string'
             ? parseCardigannYaml(yamlContentOrParsed)
             : yamlContentOrParsed;
-        const domains = extractDomains(definition);
+        let domains = extractDomains(definition);
         const searchConfig = extractSearchConfig(definition);
 
         const indexerId = definition.id || 'unknown';
         const errors = [];
         const emptyDomains = []; // Track domains that returned 0 results (not errors)
+
+        // OPTIMIZATION: If we have a known working domain from health check, try it first
+        // This dramatically reduces failed requests during real-time search
+        if (options.workingDomain) {
+            const workingDomain = options.workingDomain;
+            // Move working domain to the front of the list
+            domains = [workingDomain, ...domains.filter(d => d !== workingDomain)];
+            console.log(`[Cardigann:${indexerId}] Prioritizing known working domain: ${workingDomain}`);
+        }
 
         console.log(`[Cardigann:${indexerId}] Starting search with ${domains.length} domains`);
 
