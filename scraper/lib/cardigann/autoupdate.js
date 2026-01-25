@@ -9,7 +9,7 @@ import fs from 'fs/promises';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { DefinitionSync } from './sync.js';
-import { saveScraperConfig } from '../../db.js';
+import { saveScraperConfig } from '../db.js';
 import { parseCardigannYaml, extractDomains } from './parser.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
