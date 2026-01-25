@@ -434,24 +434,34 @@ export async function runHealthChecks() {
     const results = {};
 
     // 4. Run checks (Sequentially 1 by 1)
+    // CRITICAL: Save to DB immediately after each check so data is preserved if job times out
     // We run sequentially to avoid triggering Cloudflare rate limits and to save Vercel memory.
+    let completed = 0;
     for (const candidate of batch) {
         try {
-            console.log(`[HealthCheck] Checking ${candidate.id}...`);
+            console.log(`[HealthCheck] [${completed + 1}/${batch.length}] Checking ${candidate.id}...`);
             const result = await checkIndexer(candidate.id);
             results[candidate.id] = result;
 
-            // Save to DB (Update last_check)
-            await updateHealthMetrics(candidate.id, result.success, result.responseTime, result.workingDomain, result.error);
+            // Save to DB IMMEDIATELY after each check (data preserved even if job times out later)
+            try {
+                await updateHealthMetrics(candidate.id, result.success, result.responseTime, result.workingDomain, result.error);
+                completed++;
+                console.log(`[HealthCheck] [${completed}/${batch.length}] Saved ${candidate.id}: ${result.success ? 'OK' : 'FAIL'}`);
+            } catch (dbErr) {
+                console.error(`[HealthCheck] DB save failed for ${candidate.id}: ${dbErr.message}`);
+                // Continue to next indexer even if DB save fails
+            }
 
             // Small delay between checks to be "nice"
             await new Promise(r => setTimeout(r, 1000));
         } catch (err) {
-            console.error(`[HealthCheck] Critical error checking ${candidate.id}:`, err);
+            console.error(`[HealthCheck] Critical error checking ${candidate.id}:`, err.message);
+            // Continue to next indexer even if one fails completely
         }
     }
 
-    console.log('[HealthCheck] Batch complete.');
+    console.log(`[HealthCheck] Batch complete: ${completed}/${batch.length} saved to DB`);
     return results;
 }
 
