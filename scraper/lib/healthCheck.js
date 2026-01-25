@@ -169,6 +169,9 @@ async function checkIndexer(indexerId) {
                     // Cleanup remaining tags
                     .replace(/{{.*?}}/g, '')
 
+                    // Cleanup quotes that might have been part of the template
+                    .replace(/"/g, '')
+
                     // Cleanup double slashes or weird artifacts
                     .replace(/\/+/g, '/'); // careful with protocol
 

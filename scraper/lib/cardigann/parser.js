@@ -143,11 +143,17 @@ function parseSearchPaths(lines, startIndex) {
 
         const content = line.trim();
         if (content.startsWith('- path:')) {
-            paths.push({
-                path: content.replace('- path:', '').trim()
-            });
+            let pathVal = content.replace('- path:', '').trim();
+            if ((pathVal.startsWith('"') && pathVal.endsWith('"')) || (pathVal.startsWith("'") && pathVal.endsWith("'"))) {
+                pathVal = pathVal.slice(1, -1);
+            }
+            paths.push({ path: pathVal });
         } else if (content.startsWith('path:') && paths.length === 0) {
-            paths.push({ path: content.replace('path:', '').trim() });
+            let pathVal = content.replace('path:', '').trim();
+            if ((pathVal.startsWith('"') && pathVal.endsWith('"')) || (pathVal.startsWith("'") && pathVal.endsWith("'"))) {
+                pathVal = pathVal.slice(1, -1);
+            }
+            paths.push({ path: pathVal });
         }
         i++;
     }
