@@ -11,7 +11,7 @@ import { getScraperConfig, supabase } from './db.js';
 import { PUBLIC_INDEXERS, DefinitionSync } from './cardigann/sync.js';
 import { parseCardigannYaml, extractSearchConfig } from './cardigann/parser.js';
 import { solveCFChallenge, getCachedSession, requestWithCFSession } from './cfSolver.js';
-import { autoUpdateDomains } from './cardigann/autoupdate.js';
+// NOTE: autoUpdateDomains is now called by separate /api/cron/prowlarr-update endpoint
 
 const supabaseUrl = process.env.SUPABASE_URL; // Still needed for passed logic if any? 
 // Actually supabase instance is mostly used.
@@ -385,19 +385,10 @@ const withTimeout = (promise, ms, errorMsg) => {
 export async function runHealthChecks() {
     console.log('[HealthCheck] Starting health check job...');
 
-    // 1. Ensure definitions are synced (with timeout to prevent GitHub hangs)
-    try {
-        console.log('[HealthCheck] Syncing definitions & updating DB...');
-        await withTimeout(
-            autoUpdateDomains({ dryRun: false, verbose: false }),
-            60000, // 60 second timeout - sync takes ~16s + DB saves for 95+ indexers
-            'Definition sync timed out after 60s'
-        );
-    } catch (syncError) {
-        console.error(`[HealthCheck] Failed to sync definitions: ${syncError.message}`);
-    }
+    // NOTE: Definition sync is now handled by separate /api/cron/prowlarr-update endpoint
+    // This gives us more time to test actual URLs instead of waiting for GitHub sync
 
-    // 2. Identify which indexers to check (Priority: Never checked > Oldest checked)
+    // 1. Identify which indexers to check (Priority: Never checked > Oldest checked)
     let candidates = [];
 
     if (supabase) {
