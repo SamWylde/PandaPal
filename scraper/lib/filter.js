@@ -270,6 +270,12 @@ function filterByProvider(streams, config) {
   if (!providers) {
     return streams;
   }
+
+  // "smart" is a mode selector, not a filter - if selected, show all streams
+  if (providers.includes('smart')) {
+    return streams;
+  }
+
   return streams.filter(stream => {
     const provider = extractProvider(stream.name);
     return providers.includes(provider);

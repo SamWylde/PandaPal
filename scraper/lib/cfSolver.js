@@ -8,11 +8,33 @@
  */
 
 import { createClient } from '@supabase/supabase-js';
-import puppeteer from 'puppeteer-extra';
-import StealthPlugin from 'puppeteer-extra-plugin-stealth';
 
-// Add stealth plugin
-puppeteer.use(StealthPlugin());
+// Dynamic import for puppeteer to handle stealth plugin issues
+let puppeteer;
+let stealthEnabled = false;
+
+async function getPuppeteer() {
+    if (puppeteer) return puppeteer;
+
+    try {
+        // Try to use puppeteer-extra with stealth
+        const puppeteerExtra = await import('puppeteer-extra');
+        const StealthPlugin = await import('puppeteer-extra-plugin-stealth');
+        puppeteer = puppeteerExtra.default;
+        puppeteer.use(StealthPlugin.default());
+        stealthEnabled = true;
+        console.log('[CFSolver] Loaded puppeteer-extra with stealth plugin');
+    } catch (err) {
+        // Fall back to puppeteer-core without stealth
+        console.log(`[CFSolver] Stealth plugin unavailable: ${err.message}`);
+        console.log('[CFSolver] Falling back to puppeteer-core (no stealth)');
+        const puppeteerCore = await import('puppeteer-core');
+        puppeteer = puppeteerCore.default;
+        stealthEnabled = false;
+    }
+
+    return puppeteer;
+}
 
 // Supabase client
 const supabaseUrl = process.env.SUPABASE_URL;
@@ -198,6 +220,9 @@ export async function solveCFChallenge(url, options = {}) {
     let browser = null;
 
     try {
+        // Get puppeteer instance (with or without stealth)
+        const pptr = await getPuppeteer();
+
         // Import chromium dynamically (for serverless)
         const chromium = await import('@sparticuz/chromium');
 
@@ -205,9 +230,9 @@ export async function solveCFChallenge(url, options = {}) {
         chromium.default.setHeadlessMode = 'shell';
         chromium.default.setGraphicsMode = false;
 
-        console.log('[CFSolver] Launching browser...');
+        console.log(`[CFSolver] Launching browser... (stealth: ${stealthEnabled})`);
 
-        browser = await puppeteer.launch({
+        browser = await pptr.launch({
             args: [
                 ...chromium.default.args,
                 '--no-sandbox',
