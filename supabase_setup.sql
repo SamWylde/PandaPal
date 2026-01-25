@@ -132,3 +132,26 @@ ALTER TABLE public.torrent ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.file ENABLE ROW LEVEL SECURITY;
 CREATE POLICY "torrent_service_role_access" ON public.torrent FOR ALL USING (true);
 CREATE POLICY "file_service_role_access" ON public.file FOR ALL USING (true);
+
+-- 9. scraper_configurations table (for Prowlarr domain sync)
+-- Stores indexer configurations fetched from Prowlarr/Indexers repo
+CREATE TABLE IF NOT EXISTS public.scraper_configurations (
+  "id" VARCHAR(50) PRIMARY KEY,           -- Indexer ID (e.g., 'yts', '1337x', 'torrentgalaxy')
+  "config" JSONB NOT NULL,                -- Full parsed configuration from Prowlarr YAML
+  "updated_at" TIMESTAMPTZ DEFAULT now()  -- Last update timestamp
+);
+
+-- Create index for faster lookups
+CREATE INDEX IF NOT EXISTS idx_scraper_configurations_updated_at
+  ON public.scraper_configurations("updated_at");
+
+-- Enable RLS and create policy
+ALTER TABLE public.scraper_configurations ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "scraper_configurations_service_role_access"
+  ON public.scraper_configurations FOR ALL USING (true);
+
+-- Comment explaining the table
+COMMENT ON TABLE public.scraper_configurations IS
+  'Stores scraper configurations synced from Prowlarr/Indexers GitHub repo.
+   Updated daily via /api/cron/update-domains endpoint.
+   Config contains: links (domains), search paths, selectors, etc.';
