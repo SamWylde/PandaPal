@@ -35,13 +35,9 @@ async function checkIndexer(indexerId) {
     let domains = scraperConfig?.links || [];
 
     if (domains.length === 0) {
-        // Fallback: try to get from definitions if not in DB yet
+        // Fallback: try to get from synced definitions metadata
         try {
-            const def = await sync.getDefinition(indexerId);
-            if (def) {
-                const parsed = parseCardigannYaml(def);
-                domains = parsed.links || [];
-            }
+            domains = await sync.getDomains(indexerId);
         } catch (e) { }
     }
 
@@ -170,6 +166,17 @@ async function checkIndexer(indexerId) {
  */
 export async function runHealthChecks() {
     console.log(`[HealthCheck] Starting health checks for ${PUBLIC_INDEXERS.length} public indexers...`);
+
+    // Ensure definitions are synced before running health checks
+    // This is critical on Vercel where /tmp is ephemeral
+    try {
+        console.log('[HealthCheck] Syncing definitions from Prowlarr...');
+        await sync.sync();
+        console.log('[HealthCheck] Definitions synced successfully');
+    } catch (syncError) {
+        console.error(`[HealthCheck] Failed to sync definitions: ${syncError.message}`);
+        // Continue anyway - some indexers may have DB configs
+    }
 
     const results = {};
 
