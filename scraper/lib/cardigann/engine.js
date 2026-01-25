@@ -19,9 +19,13 @@ export class CardigannEngine {
 
     /**
      * Execute a search using a Cardigann definition
+     * @param {string|Object} yamlContentOrParsed - Either raw YAML string or already-parsed definition object
      */
-    async search(yamlContent, query, options = {}) {
-        const definition = parseCardigannYaml(yamlContent);
+    async search(yamlContentOrParsed, query, options = {}) {
+        // Support both raw YAML strings (from file/sync) and pre-parsed objects (from database)
+        const definition = typeof yamlContentOrParsed === 'string'
+            ? parseCardigannYaml(yamlContentOrParsed)
+            : yamlContentOrParsed;
         const domains = extractDomains(definition);
         const searchConfig = extractSearchConfig(definition);
 
