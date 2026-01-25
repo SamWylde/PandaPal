@@ -1,0 +1,895 @@
+{
+  "lastSync": "2026-01-25T03:30:38.682Z",
+  "source": "https://github.com/Prowlarr/Indexers",
+  "version": "v11",
+  "indexers": {
+    "0magnet": {
+      "links": [
+        "https://13mag.net/",
+        "https://16mag.net/"
+      ],
+      "type": "public",
+      "language": "en-US",
+      "name": "0Magnet"
+    },
+    "1337x": {
+      "links": [
+        "https://1337x.to/",
+        "https://1337x.st/",
+        "https://x1337x.ws/",
+        "https://x1337x.eu/",
+        "https://x1337x.cc/"
+      ],
+      "type": "public",
+      "language": "en-US",
+      "name": "1337x"
+    },
+    "52bt": {
+      "links": [
+        "https://www.529056.xyz/",
+        "https://www.529058.xyz/",
+        "https://www.52bt059.buzz/",
+        "https://www.529060.xyz/",
+        "https://www.529061.xyz/",
+        "https://www.529059.xyz/",
+        "https://www.529062.xyz/",
+        "https://www.529063.xyz/",
+        "https://www.529064.xyz/",
+        "https://www.529066.xyz/",
+        "https://www.529065.xyz/",
+        "https://www.529068.xyz/",
+        "https://www.529069.xyz/",
+        "https://www.529067.xyz/",
+        "https://www.529070.xyz/",
+        "https://www.529071.xyz/"
+      ],
+      "type": "public",
+      "language": "zh-CN",
+      "name": "52BT"
+    },
+    "acgrip": {
+      "links": [
+        "https://acg.rip/"
+      ],
+      "type": "public",
+      "language": "zh-CN",
+      "name": "ACG.RIP"
+    },
+    "anisource": {
+      "links": [
+        "https://asnet.pw/"
+      ],
+      "type": "public",
+      "language": "en-US",
+      "name": "AniSource"
+    },
+    "arabtorrents-com": {
+      "links": [
+        "https://arab-torrents.com/"
+      ],
+      "type": "public",
+      "language": "ar-AE",
+      "name": "arab-torrents.com"
+    },
+    "bangumi-moe": {
+      "links": [
+        "https://bangumi.moe/"
+      ],
+      "type": "public",
+      "language": "en-US",
+      "name": "Bangumi Moe"
+    },
+    "bigfangroup": {
+      "links": [
+        "https://bigfangroup.org/",
+        "https://www.freebfg.org/"
+      ],
+      "type": "public",
+      "language": "ru-RU",
+      "name": "BigFANGroup"
+    },
+    "bitru": {
+      "links": [
+        "https://bitru.org/"
+      ],
+      "type": "public",
+      "language": "ru-RU",
+      "name": "BitRu"
+    },
+    "bitsearch": {
+      "links": [
+        "https://bitsearch.to/",
+        "https://solidtorrents.eu/"
+      ],
+      "type": "public",
+      "language": "en-US",
+      "name": "BitSearch"
+    },
+    "blueroms": {
+      "links": [
+        "https://www.blueroms.ws/"
+      ],
+      "type": "public",
+      "language": "en-US",
+      "name": "BlueRoms"
+    },
+    "btdirectory": {
+      "links": [
+        "https://btmulu.live/",
+        "https://www.btmulu.cyou/",
+        "https://www.btmulu.quest/",
+        "https://www.btmulu.cfd/",
+        "https://www.btmulu.help/"
+      ],
+      "type": "public",
+      "language": "en-US",
+      "name": "BTdirectory"
+    },
+    "btetree": {
+      "links": [
+        "https://bt.etree.org/"
+      ],
+      "type": "public",
+      "language": "en-US",
+      "name": "BT.etree"
+    },
+    "btstate": {
+      "links": [
+        "https://btstate.com/"
+      ],
+      "type": "public",
+      "language": "en-US",
+      "name": "btstate"
+    },
+    "byrutor": {
+      "links": [
+        "https://byrutgame.org/"
+      ],
+      "type": "public",
+      "language": "ru-RU",
+      "name": "Byrutor"
+    },
+    "catorrent": {
+      "links": [
+        "https://catorrent.net/"
+      ],
+      "type": "public",
+      "language": "ru-RU",
+      "name": "Catorrent"
+    },
+    "cpasbienclone": {
+      "links": [
+        "https://www1.cpasbien.to/"
+      ],
+      "type": "public",
+      "language": "fr-FR",
+      "name": "cpasbien clone"
+    },
+    "crackingpatching": {
+      "links": [
+        "https://crackingpatching.com/"
+      ],
+      "type": "public",
+      "language": "en-US",
+      "name": "CrackingPatching"
+    },
+    "damagnet": {
+      "links": [
+        "https://damag.net/"
+      ],
+      "type": "public",
+      "language": "en-US",
+      "name": "DaMagNet"
+    },
+    "dmhy": {
+      "links": [
+        "https://share.dmhy.org/"
+      ],
+      "type": "public",
+      "language": "zh-TW",
+      "name": "dmhy"
+    },
+    "ebookbay": {
+      "links": [
+        "https://ebb.la/"
+      ],
+      "type": "public",
+      "language": "en-US",
+      "name": "EBookBay"
+    },
+    "ehentai": {
+      "links": [
+        "https://e-hentai.org/"
+      ],
+      "type": "public",
+      "language": "en-US",
+      "name": "E-Hentai"
+    },
+    "elitetorrent-wf": {
+      "links": [
+        "https://www.elitetorrent.wf/"
+      ],
+      "type": "public",
+      "language": "es-ES",
+      "name": "Elitetorrent-wf"
+    },
+    "extratorrent-st": {
+      "links": [
+        "https://extratorrent.st/",
+        "https://extratorrent.ninjaproxy1.com/",
+        "https://extratorrent.proxyninja.org/",
+        "https://extratorrent.proxyninja.net/"
+      ],
+      "type": "public",
+      "language": "en-US",
+      "name": "ExtraTorrent.st"
+    },
+    "eztv": {
+      "links": [
+        "https://eztvx.to/",
+        "https://eztv.wf/",
+        "https://eztv.tf/",
+        "https://eztv.yt/",
+        "https://eztv1.xyz/"
+      ],
+      "type": "public",
+      "language": "en-US",
+      "name": "EZTV"
+    },
+    "filemood": {
+      "links": [
+        "https://filemood.com/"
+      ],
+      "type": "public",
+      "language": "en-US",
+      "name": "FileMood"
+    },
+    "freejavtorrent": {
+      "links": [
+        "https://www.freejavtorrent.com/"
+      ],
+      "type": "public",
+      "language": "en-US",
+      "name": "Free JAV Torrent"
+    },
+    "frozenlayer": {
+      "links": [
+        "https://www.frozen-layer.com/"
+      ],
+      "type": "public",
+      "language": "es-ES",
+      "name": "Frozen Layer"
+    },
+    "gamestorrents": {
+      "links": [
+        "https://www.gamestorrents.app/"
+      ],
+      "type": "public",
+      "language": "es-ES",
+      "name": "GamesTorrents"
+    },
+    "gtorrentpro": {
+      "links": [
+        "https://gtorrent.club/"
+      ],
+      "type": "public",
+      "language": "ru-RU",
+      "name": "GTorrent.club"
+    },
+    "ilcorsaronero": {
+      "links": [
+        "https://ilcorsaronero.link/",
+        "https://ilcorsaronero.torrentbay.st/"
+      ],
+      "type": "public",
+      "language": "it-IT",
+      "name": "ilCorSaRoNeRo"
+    },
+    "internetarchive": {
+      "links": [
+        "https://archive.org/"
+      ],
+      "type": "public",
+      "language": "en-US",
+      "name": "Internet Archive"
+    },
+    "isohunt2": {
+      "links": [
+        "https://isohunt.sh/"
+      ],
+      "type": "public",
+      "language": "en-US",
+      "name": "Isohunt2"
+    },
+    "kickasstorrents-to": {
+      "links": [
+        "https://kickass.torrentbay.st/",
+        "https://kickass.torrentsbay.org/",
+        "https://kickasstorrents.unblockninja.com/",
+        "https://kickasstorrents.ninjaproxy1.com/",
+        "https://kickasstorrents.proxyninja.org/",
+        "https://kickasstorrents.proxyninja.net/"
+      ],
+      "type": "public",
+      "language": "en-US",
+      "name": "kickasstorrents.to"
+    },
+    "kickasstorrents-ws": {
+      "links": [
+        "https://kickass.ws/",
+        "https://kickasstorrents.bz/",
+        "https://kkickass.com/",
+        "https://kkat.net/",
+        "https://kick4ss.com/",
+        "https://kickasst.net/",
+        "https://kickasstorrents.id/",
+        "https://thekat.cc/",
+        "https://kattracker.com/"
+      ],
+      "type": "public",
+      "language": "en-US",
+      "name": "kickasstorrents.ws"
+    },
+    "limetorrents": {
+      "links": [
+        "https://www.limetorrents.fun/",
+        "https://limetorrents.unblockninja.com/",
+        "https://limetorrents.ninjaproxy1.com/",
+        "https://limetorrents.proxyninja.org/",
+        "https://limetorrents.proxyninja.net/",
+        "https://limetorrents.torrentbay.st/",
+        "https://limetorrents.torrentsbay.org/"
+      ],
+      "type": "public",
+      "language": "en-US",
+      "name": "LimeTorrents"
+    },
+    "linuxtracker": {
+      "links": [
+        "https://linuxtracker.org/"
+      ],
+      "type": "public",
+      "language": "en-US",
+      "name": "LinuxTracker"
+    },
+    "mactorrentsdownload": {
+      "links": [
+        "https://www.torrentmac.net/"
+      ],
+      "type": "public",
+      "language": "en-US",
+      "name": "Mac Torrents Download"
+    },
+    "magnetcat": {
+      "links": [
+        "https://magnetcatcat.com/",
+        "https://clmclm.com/",
+        "https://www.8800531.xyz/",
+        "https://www.8800532.xyz/",
+        "https://www.8800533.xyz/",
+        "https://www.8800534.xyz/"
+      ],
+      "type": "public",
+      "language": "en-US",
+      "name": "Magnet Cat"
+    },
+    "magnetdownload": {
+      "links": [
+        "https://www.magnetdownload.com/"
+      ],
+      "type": "public",
+      "language": "en-US",
+      "name": "MagnetDownload"
+    },
+    "magnetz": {
+      "links": [
+        "https://magnetz.eu/"
+      ],
+      "type": "public",
+      "language": "en-US",
+      "name": "Magnetz"
+    },
+    "megapeer": {
+      "links": [
+        "https://megapeer.vip/"
+      ],
+      "type": "public",
+      "language": "ru-RU",
+      "name": "MegaPeer"
+    },
+    "mikan": {
+      "links": [
+        "https://mikanani.me/"
+      ],
+      "type": "public",
+      "language": "zh-CN",
+      "name": "Mikan"
+    },
+    "mixtapetorrent": {
+      "links": [
+        "http://www.mixtapetorrent.com/ # does not support https NET::ERR_CERT_AUTHORITY_INVALID"
+      ],
+      "type": "public",
+      "language": "en-US",
+      "name": "MixtapeTorrent"
+    },
+    "moviesdvdr": {
+      "links": [
+        "https://www.moviesdvdr.co/"
+      ],
+      "type": "public",
+      "language": "es-ES",
+      "name": "MoviesDVDR"
+    },
+    "mypornclub": {
+      "links": [
+        "https://myporn.club/"
+      ],
+      "type": "public",
+      "language": "en-US",
+      "name": "MyPornClub"
+    },
+    "nekobt": {
+      "links": [
+        "https://nekobt.to/"
+      ],
+      "type": "public",
+      "language": "en-US",
+      "name": "nekoBT"
+    },
+    "newstudio": {
+      "links": [
+        "https://newstudio.tv/"
+      ],
+      "type": "public",
+      "language": "ru-RU",
+      "name": "NewStudio"
+    },
+    "nipponsei": {
+      "links": [
+        "https://nipponsei.minglong.org/"
+      ],
+      "type": "public",
+      "language": "en-US",
+      "name": "Nipponsei"
+    },
+    "noname-club": {
+      "links": [
+        "https://nnmclub.to/"
+      ],
+      "type": "public",
+      "language": "ru-RU",
+      "name": "NoNaMe Club"
+    },
+    "nortorrent": {
+      "links": [
+        "https://ww1-nortorrent.com/"
+      ],
+      "type": "public",
+      "language": "fr-FR",
+      "name": "NorTorrent"
+    },
+    "nyaasi": {
+      "links": [
+        "https://nyaa.si/",
+        "https://nyaa.iss.ink/",
+        "https://nyaa.land/",
+        "https://nyaa.unblockninja.com/ # for magnets only"
+      ],
+      "type": "public",
+      "language": "en-US",
+      "name": "Nyaa.si"
+    },
+    "onejav": {
+      "links": [
+        "https://onejav.com/"
+      ],
+      "type": "public",
+      "language": "en-US",
+      "name": "OneJAV"
+    },
+    "opensharing": {
+      "links": [
+        "https://opensharing.org/"
+      ],
+      "type": "public",
+      "language": "ru-RU",
+      "name": "OpenSharing"
+    },
+    "pctorrent": {
+      "links": [
+        "https://pc-torrents.games/"
+      ],
+      "type": "public",
+      "language": "ru-RU",
+      "name": "PC-torrent"
+    },
+    "piratesparadise": {
+      "links": [
+        "https://piratesparadise.org/"
+      ],
+      "type": "public",
+      "language": "en-US",
+      "name": "Pirate's Paradise"
+    },
+    "plugintorrent": {
+      "links": [
+        "https://plugintorrent.com/"
+      ],
+      "type": "public",
+      "language": "en-US",
+      "name": "plugintorrent"
+    },
+    "pornrips": {
+      "links": [
+        "https://pornrips.to/"
+      ],
+      "type": "public",
+      "language": "en-US",
+      "name": "PornRips"
+    },
+    "postman": {
+      "links": [
+        "http://tracker2.postman.i2p/"
+      ],
+      "type": "public",
+      "language": "en-US",
+      "name": "Postman"
+    },
+    "rintornet": {
+      "links": [
+        "https://www.rintor.net/"
+      ],
+      "type": "public",
+      "language": "ru-RU",
+      "name": "RinTor.NeT"
+    },
+    "rutor": {
+      "links": [
+        "https://rutor.info/",
+        "https://rutor.is/",
+        "http://6tor.org/ # IPv6-only"
+      ],
+      "type": "public",
+      "language": "ru-RU",
+      "name": "RuTor"
+    },
+    "rutracker-ru": {
+      "links": [
+        "http://rutracker.ru/ # site does not support https"
+      ],
+      "type": "public",
+      "language": "ru-RU",
+      "name": "RuTracker.RU"
+    },
+    "sexypics": {
+      "links": [
+        "https://www.sexy-pics.us/"
+      ],
+      "type": "public",
+      "language": "en-US",
+      "name": "Sexy-Pics"
+    },
+    "shanaproject": {
+      "links": [
+        "https://www.shanaproject.com/"
+      ],
+      "type": "public",
+      "language": "en-US",
+      "name": "Shana Project"
+    },
+    "showrss": {
+      "links": [
+        "https://showrss.info/"
+      ],
+      "type": "public",
+      "language": "en-US",
+      "name": "showRSS"
+    },
+    "skidrowrepack": {
+      "links": [
+        "https://skidrowrepack.com/"
+      ],
+      "type": "public",
+      "language": "en-US",
+      "name": "SkidrowRepack"
+    },
+    "sosulki": {
+      "links": [
+        "https://sosulki.hlom.ru/"
+      ],
+      "type": "public",
+      "language": "ru-RU",
+      "name": "sosulki"
+    },
+    "sukebeinyaasi": {
+      "links": [
+        "https://sukebei.nyaa.si/"
+      ],
+      "type": "public",
+      "language": "en-US",
+      "name": "sukebei.nyaa.si"
+    },
+    "thepiratebay": {
+      "links": [
+        "https://thepiratebay.org/",
+        "https://thepiratebay.unblockninja.com/",
+        "https://thepiratebay.ninjaproxy1.com/",
+        "https://tpb.proxyninja.org/",
+        "https://thepiratebay.proxyninja.net/",
+        "https://thepiratebay.torrentbay.st/",
+        "https://tpb.skynetcloud.site/",
+        "https://piratehaven.xyz/",
+        "https://mirrorbay.top/",
+        "https://thepiratebay0.org/",
+        "https://thepiratebay10.xyz/",
+        "https://pirateproxylive.org/",
+        "https://thehiddenbay.com/",
+        "https://thepiratebay.zone/",
+        "https://tpb.party/",
+        "https://piratebayproxy.live/",
+        "https://piratebay.live/",
+        "https://piratebay.party/",
+        "https://thepiratebay.party/",
+        "https://thepiratebaye.org/",
+        "https://thepiratebay.cloud/",
+        "https://tpb-proxy.xyz/",
+        "https://tpb.re/",
+        "https://tpirbay.site/",
+        "https://tpirbay.top/",
+        "https://tpirbay.xyz/"
+      ],
+      "type": "public",
+      "language": "en-US",
+      "name": "The Pirate Bay"
+    },
+    "tokyotosho": {
+      "links": [
+        "https://www.tokyotosho.info/"
+      ],
+      "type": "public",
+      "language": "en-US",
+      "name": "Tokyo Toshokan"
+    },
+    "torrent-pirat": {
+      "links": [
+        "http://www.torrent-pirat.com/ # site does not support https ERR_CONNECTION_REFUSED"
+      ],
+      "type": "public",
+      "language": "ru-RU",
+      "name": "torrent-pirat"
+    },
+    "torrent9": {
+      "links": [
+        "https://ww2.torrent9.to/"
+      ],
+      "type": "public",
+      "language": "fr-FR",
+      "name": "Torrent9"
+    },
+    "torrentby": {
+      "links": [
+        "https://torrent.by/"
+      ],
+      "type": "public",
+      "language": "ru-RU",
+      "name": "torrent.by"
+    },
+    "torrentcore": {
+      "links": [
+        "https://torrentcore.xyz/"
+      ],
+      "type": "public",
+      "language": "en-US",
+      "name": "Torrent[CORE]"
+    },
+    "torrentdownload": {
+      "links": [
+        "https://www.torrentdownload.info/"
+      ],
+      "type": "public",
+      "language": "en-US",
+      "name": "TorrentDownload"
+    },
+    "torrentdownloads": {
+      "links": [
+        "https://www.torrentdownloads.pro/",
+        "https://torrentdownloads.unblockninja.com/",
+        "https://torrentdownloads.ninjaproxy1.com/",
+        "https://torrentdownloads.proxyninja.org/",
+        "https://torrentdownloads.proxyninja.net/"
+      ],
+      "type": "public",
+      "language": "en-US",
+      "name": "Torrent Downloads"
+    },
+    "torrentgalaxyclone": {
+      "links": [
+        "https://torrentgalaxy.one/",
+        "https://torrentgalaxy.info/",
+        "https://torrentgalaxy.space/"
+      ],
+      "type": "public",
+      "language": "en-US",
+      "name": "TorrentGalaxyClone"
+    },
+    "torrentkitty": {
+      "links": [
+        "https://www.torrentkitty.cam/",
+        "https://www.torrentkitty.ink/",
+        "https://www.torrentkitty.io/",
+        "https://www.torrentkitty.vip/",
+        "https://www.torrentkitty.app/",
+        "https://www.torrentkitty.red/",
+        "https://www.torrentkitty.lol/",
+        "https://www.torrentkitty.best/",
+        "https://www.torrentkitty.tv/",
+        "https://torkitty.com/"
+      ],
+      "type": "public",
+      "language": "en-US",
+      "name": "TorrentKitty"
+    },
+    "torrentoyunindir": {
+      "links": [
+        "https://0.torrentoyunindir.com/"
+      ],
+      "type": "public",
+      "language": "tr-TR",
+      "name": "Torrent Oyun indir"
+    },
+    "torrentproject2": {
+      "links": [
+        "https://torrentproject2.net/",
+        "https://torrentproject2.org/",
+        "https://torrentproject.info/",
+        "https://torrentproject.biz/",
+        "https://torrentproject.xyz/",
+        "https://torrentproject.cc/",
+        "https://torrentproject.torrentbay.st/"
+      ],
+      "type": "public",
+      "language": "en-US",
+      "name": "TorrentProject2"
+    },
+    "torrentqq": {
+      "links": [
+        "https://torrentqq404.com/",
+        "https://torrentegg86.com/"
+      ],
+      "type": "public",
+      "language": "ko-KR",
+      "name": "TorrentQQ"
+    },
+    "torrentsome": {
+      "links": [
+        "https://torrentsome231.com/"
+      ],
+      "type": "public",
+      "language": "ko-KR",
+      "name": "Torrentsome"
+    },
+    "torrenttip": {
+      "links": [
+        "https://torrenttip212.top/"
+      ],
+      "type": "public",
+      "language": "ko-KR",
+      "name": "Torrenttip"
+    },
+    "traht": {
+      "links": [
+        "https://traht.org/"
+      ],
+      "type": "public",
+      "language": "ru-RU",
+      "name": "TrahT"
+    },
+    "u3c3": {
+      "links": [
+        "https://u3c3.com/",
+        "https://u001.25img.com/",
+        "https://u002.25img.com/",
+        "https://u003.25img.com/",
+        "https://m0m0m1m.mnmnmnmnmn.com/ # numbers in subdomain can be m2m9m9m or less"
+      ],
+      "type": "public",
+      "language": "zh-CN",
+      "name": "U3C3"
+    },
+    "uindex": {
+      "links": [
+        "https://uindex.org/"
+      ],
+      "type": "public",
+      "language": "en-US",
+      "name": "Uindex"
+    },
+    "uztracker": {
+      "links": [
+        "https://uztracker.net/"
+      ],
+      "type": "public",
+      "language": "ru-RU",
+      "name": "UzTracker"
+    },
+    "vsthouse": {
+      "links": [
+        "https://vsthouse.ru/"
+      ],
+      "type": "public",
+      "language": "ru-RU",
+      "name": "VSTHouse"
+    },
+    "vstorrent": {
+      "links": [
+        "https://vstorrent.org/"
+      ],
+      "type": "public",
+      "language": "en-US",
+      "name": "VSTorrent"
+    },
+    "vsttorrents": {
+      "links": [
+        "https://vsttorrentz.net/"
+      ],
+      "type": "public",
+      "language": "en-US",
+      "name": "VST Torrentz"
+    },
+    "world-torrent": {
+      "links": [
+        "https://www.world-torrent1.com/",
+        "https://www-cine-torrent.com/",
+        "https://www-mania-torrent.com/",
+        "https://ww1-magnet-torrent.com/",
+        "https://ww1-mega-torrent.com/",
+        "https://ww1-zone-torrent.com/",
+        "https://ww1-warez-torrent.com/"
+      ],
+      "type": "public",
+      "language": "fr-FR",
+      "name": "World-torrent"
+    },
+    "xxxclub": {
+      "links": [
+        "https://xxxclub.to/",
+        "https://xxxclub.cc/"
+      ],
+      "type": "public",
+      "language": "en-US",
+      "name": "XXXClub"
+    },
+    "xxxtor": {
+      "links": [
+        "https://xxxtor.com/"
+      ],
+      "type": "public",
+      "language": "ru-RU",
+      "name": "xxxtor"
+    },
+    "yts": {
+      "links": [
+        "https://yts.am/ # redirects to .bz",
+        "https://yts.ag/ # redirects to .bz",
+        "https://yts.gg/ # redirects to .bz",
+        "https://yts.mx/",
+        "https://yts.mrunblock.bond/",
+        "https://yts.nocensor.cloud/",
+        "https://yts.unblockit.download/",
+        "https://yts.lt/ # redirects to .bz"
+      ],
+      "type": "public",
+      "language": "en-US",
+      "name": "YTS"
+    },
+    "zktorrent": {
+      "links": [
+        "https://ww1-zktorrent.com/"
+      ],
+      "type": "public",
+      "language": "fr-FR",
+      "name": "ZkTorrent"
+    }
+  }
+}
