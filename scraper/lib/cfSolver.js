@@ -1,13 +1,15 @@
 /**
  * CloudFlare Solver Service
  *
- * Uses Puppeteer with stealth plugin to solve CF challenges.
+ * Primary: Uses FlareSolverr to solve CF challenges (external service)
+ * Fallback: Uses Puppeteer with stealth plugin (serverless-compatible)
  * Stores solved cookies in Supabase for reuse.
  *
  * Based on Prowlarr's FlareSolverr integration pattern.
  */
 
 import { supabase } from './db.js';
+import * as flareSolverr from './flareSolverr.js';
 
 // Dynamic import for puppeteer to handle stealth plugin issues
 let puppeteer;
@@ -286,21 +288,24 @@ async function waitForChallengeSolved(page, timeoutMs = 60000) {
 /**
  * Solve CloudFlare challenge for a URL
  *
+ * Strategy:
+ * 1. Check Supabase cache for existing session
+ * 2. Try FlareSolverr (external service - more reliable)
+ * 3. Fall back to Puppeteer (serverless - less reliable)
+ *
  * @param {string} url - The URL to solve CF challenge for
  * @param {object} options - Options
  * @param {number} options.timeout - Timeout in ms (default 60000)
  * @param {boolean} options.useCache - Whether to check cache first (default true)
+ * @param {boolean} options.useFlareSolverr - Whether to try FlareSolverr first (default true)
  * @returns {Promise<{success: boolean, cookies?: array, userAgent?: string, error?: string}>}
  */
 export async function solveCFChallenge(url, options = {}) {
-    // MAX 25s timeout - CF bypass rarely works on serverless anyway
-    const { timeout = 25000, useCache = true } = options;
-    const actualTimeout = Math.min(timeout, 25000); // Cap at 25s
+    const { timeout = 60000, useCache = true, useFlareSolverr = true } = options;
     const startTime = Date.now();
-    console.log(`[CFSolver] Solving for ${url} (timeout: ${actualTimeout}ms)`);
     const domain = extractDomain(url);
 
-    console.log(`[CFSolver] Attempting to solve CF challenge for ${domain}`);
+    console.log(`[CFSolver] Attempting to solve CF challenge for ${domain} (timeout: ${timeout}ms)`);
 
     // Check cache first
     if (useCache) {
@@ -316,7 +321,40 @@ export async function solveCFChallenge(url, options = {}) {
         }
     }
 
-    // Need to solve with browser
+    // Try FlareSolverr first (external service - more reliable on serverless)
+    if (useFlareSolverr) {
+        console.log(`[CFSolver] Trying FlareSolverr for ${domain}...`);
+        try {
+            const flareResult = await flareSolverr.solveCFChallenge(url, {
+                timeout: timeout,
+                returnOnlyCookies: false // Get HTML too for validation
+            });
+
+            if (flareResult.success) {
+                console.log(`[CFSolver] FlareSolverr solved challenge for ${domain}`);
+
+                // Store in cache for reuse
+                if (flareResult.cookies && flareResult.cookies.length > 0) {
+                    await storeCachedSession(domain, flareResult.cookies, flareResult.userAgent);
+                }
+
+                return {
+                    success: true,
+                    cookies: flareResult.cookies,
+                    userAgent: flareResult.userAgent,
+                    html: flareResult.html,
+                    fromCache: false,
+                    solver: 'flaresolverr'
+                };
+            } else {
+                console.log(`[CFSolver] FlareSolverr failed: ${flareResult.error}`);
+            }
+        } catch (flareErr) {
+            console.log(`[CFSolver] FlareSolverr error: ${flareErr.message}`);
+        }
+    }
+
+    // Fall back to Puppeteer (serverless browser)
     let browser = null;
     let page = null;  // Track page for explicit cleanup
 

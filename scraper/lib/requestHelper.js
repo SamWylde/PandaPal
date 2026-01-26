@@ -1,6 +1,7 @@
 import UserAgent from 'user-agents';
 import axios from 'axios';
 import { requestWithBrowser } from './browser.js';
+import * as flareSolverr from './flareSolverr.js';
 
 const userAgent = new UserAgent();
 
@@ -40,7 +41,22 @@ export async function performRequest(url, options = {}) {
         throw error;
       }
 
-      console.warn(`[RequestHelper] Cloudflare block detected for ${url} (Status: ${response.status}). Switching to Serverless Browser...`);
+      console.warn(`[RequestHelper] Cloudflare block detected for ${url} (Status: ${response.status}). Trying FlareSolverr...`);
+
+      // Try FlareSolverr first (external service - more reliable)
+      try {
+        const flareResult = await flareSolverr.fetchWithCFBypass(url, { timeout: 45000 });
+        if (flareResult.success && flareResult.html) {
+          console.log(`[RequestHelper] FlareSolverr successfully bypassed Cloudflare for ${url}`);
+          return { data: flareResult.html, status: flareResult.status || 200 };
+        }
+        console.warn(`[RequestHelper] FlareSolverr failed: ${flareResult.error}. Falling back to browser...`);
+      } catch (flareErr) {
+        console.warn(`[RequestHelper] FlareSolverr error: ${flareErr.message}. Falling back to browser...`);
+      }
+
+      // Fall back to Puppeteer browser
+      console.warn(`[RequestHelper] Switching to Serverless Browser for ${url}...`);
       const html = await requestWithBrowser(url);
       return { data: html, status: 200 }; // Mock an axios-like response structure with valid HTML
     }
@@ -63,7 +79,21 @@ export async function performRequest(url, options = {}) {
       throw error;
     }
 
-    console.warn(`[RequestHelper] Request failed: ${error.message}. Retrying with Serverless Browser...`);
+    console.warn(`[RequestHelper] Request failed: ${error.message}. Trying FlareSolverr...`);
+
+    // Try FlareSolverr first
+    try {
+      const flareResult = await flareSolverr.fetchWithCFBypass(url, { timeout: 45000 });
+      if (flareResult.success && flareResult.html) {
+        console.log(`[RequestHelper] FlareSolverr successfully fetched ${url}`);
+        return { data: flareResult.html, status: flareResult.status || 200 };
+      }
+      console.warn(`[RequestHelper] FlareSolverr failed: ${flareResult.error}. Falling back to browser...`);
+    } catch (flareErr) {
+      console.warn(`[RequestHelper] FlareSolverr error: ${flareErr.message}. Falling back to browser...`);
+    }
+
+    // Fall back to browser
     try {
       const html = await requestWithBrowser(url);
       return { data: html, status: 200 };
