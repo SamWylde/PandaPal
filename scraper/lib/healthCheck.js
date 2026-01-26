@@ -123,11 +123,11 @@ function detectBlockType(response, responseText) {
 
 // Health check timing constraints (must fit in 280s Vercel timeout)
 // 5 indexers × 5 domains × 10s = 250s normal checks (worst case all timeout)
-// + 5 indexers × 1 FlareSolverr × 20s = 100s FlareSolverr worst case
-// But FlareSolverr only runs if CF block, so realistically:
-// 5 indexers × 5 domains × 2s (fast) + 5 × 20s (FlareSolverr) = 150s typical
+// + 5 indexers × 1 FlareSolverr × 45s = 225s FlareSolverr worst case
+// But FlareSolverr only runs ONCE per indexer (not per domain), so:
+// Typical: 5 indexers × 2s fast + 5 × 45s FlareSolverr = 235s worst case
 const MAX_DOMAINS_PER_INDEXER = 5;
-const FLARESOLVERR_HEALTH_TIMEOUT = 20000; // 20s (not 45s)
+const FLARESOLVERR_HEALTH_TIMEOUT = 45000; // 45s for FlareSolverr
 
 /**
  * Run health check for a single indexer (Generic Logic)
