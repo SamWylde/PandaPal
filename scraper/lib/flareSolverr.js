@@ -10,13 +10,60 @@
 import axios from 'axios';
 
 // FlareSolverr endpoint (user can set via environment variable)
-const FLARESOLVERR_URL = process.env.FLARESOLVERR_URL || 'https://flaresolverr-render-4v1l.onrender.com/v1';
+// Standard FlareSolverr uses /v1 endpoint, but some deployments serve at root
+const FLARESOLVERR_BASE = process.env.FLARESOLVERR_URL || 'https://flaresolverr-render-4v1l.onrender.com';
+
+// Cached working endpoint (detected on first request)
+let cachedEndpoint = null;
 
 // Default timeout for challenge solving (FlareSolverr can take a while on cold starts)
 const DEFAULT_TIMEOUT_MS = 60000;
 
 // Mutex to ensure only one request at a time (user's instance handles 1 request at a time)
 let requestQueue = Promise.resolve();
+
+/**
+ * Get the working FlareSolverr endpoint (auto-detects /v1 vs root)
+ * @returns {Promise<string|null>}
+ */
+async function getEndpoint() {
+    if (cachedEndpoint) {
+        return cachedEndpoint;
+    }
+
+    if (!FLARESOLVERR_BASE) {
+        return null;
+    }
+
+    // Remove trailing slash from base URL
+    const baseUrl = FLARESOLVERR_BASE.replace(/\/+$/, '');
+
+    // Try /v1 first (standard FlareSolverr)
+    const endpoints = [`${baseUrl}/v1`, baseUrl];
+
+    for (const endpoint of endpoints) {
+        try {
+            console.log(`[FlareSolverr] Testing endpoint: ${endpoint}`);
+            const response = await axios.post(endpoint, {
+                cmd: 'sessions.list'
+            }, {
+                timeout: 15000,
+                headers: { 'Content-Type': 'application/json' }
+            });
+
+            if (response.data?.status === 'ok') {
+                console.log(`[FlareSolverr] Found working endpoint: ${endpoint}`);
+                cachedEndpoint = endpoint;
+                return endpoint;
+            }
+        } catch (error) {
+            console.log(`[FlareSolverr] Endpoint ${endpoint} failed: ${error.message}`);
+        }
+    }
+
+    console.error('[FlareSolverr] No working endpoint found');
+    return null;
+}
 
 /**
  * Queue a request to FlareSolverr (ensures sequential processing)
@@ -34,24 +81,8 @@ async function queueRequest(fn) {
  * @returns {Promise<boolean>}
  */
 export async function isAvailable() {
-    if (!FLARESOLVERR_URL) {
-        return false;
-    }
-
-    try {
-        // FlareSolverr doesn't have a health endpoint, but we can check if it responds
-        const response = await axios.post(FLARESOLVERR_URL, {
-            cmd: 'sessions.list'
-        }, {
-            timeout: 10000,
-            headers: { 'Content-Type': 'application/json' }
-        });
-
-        return response.data?.status === 'ok';
-    } catch (error) {
-        console.log(`[FlareSolverr] Service not available: ${error.message}`);
-        return false;
-    }
+    const endpoint = await getEndpoint();
+    return endpoint !== null;
 }
 
 /**
@@ -69,21 +100,22 @@ export async function solveCFChallenge(url, options = {}) {
         returnOnlyCookies = true
     } = options;
 
-    if (!FLARESOLVERR_URL) {
+    const endpoint = await getEndpoint();
+    if (!endpoint) {
         return {
             success: false,
-            error: 'FlareSolverr URL not configured'
+            error: 'FlareSolverr not available (no working endpoint found)'
         };
     }
 
-    console.log(`[FlareSolverr] Solving challenge for ${url} (timeout: ${timeout}ms)`);
+    console.log(`[FlareSolverr] Solving challenge for ${url} (timeout: ${timeout}ms, endpoint: ${endpoint})`);
 
     // Queue request to ensure sequential processing
     return queueRequest(async () => {
         try {
             const startTime = Date.now();
 
-            const response = await axios.post(FLARESOLVERR_URL, {
+            const response = await axios.post(endpoint, {
                 cmd: 'request.get',
                 url: url,
                 maxTimeout: timeout,
@@ -170,8 +202,9 @@ export async function fetchWithCFBypass(url, options = {}) {
  * @returns {Promise<{success: boolean, sessionId?: string, error?: string}>}
  */
 export async function createSession(sessionId = null) {
-    if (!FLARESOLVERR_URL) {
-        return { success: false, error: 'FlareSolverr URL not configured' };
+    const endpoint = await getEndpoint();
+    if (!endpoint) {
+        return { success: false, error: 'FlareSolverr not available' };
     }
 
     return queueRequest(async () => {
@@ -181,7 +214,7 @@ export async function createSession(sessionId = null) {
                 payload.session = sessionId;
             }
 
-            const response = await axios.post(FLARESOLVERR_URL, payload, {
+            const response = await axios.post(endpoint, payload, {
                 timeout: 30000,
                 headers: { 'Content-Type': 'application/json' }
             });
@@ -214,13 +247,14 @@ export async function createSession(sessionId = null) {
  * @returns {Promise<{success: boolean, error?: string}>}
  */
 export async function destroySession(sessionId) {
-    if (!FLARESOLVERR_URL) {
-        return { success: false, error: 'FlareSolverr URL not configured' };
+    const endpoint = await getEndpoint();
+    if (!endpoint) {
+        return { success: false, error: 'FlareSolverr not available' };
     }
 
     return queueRequest(async () => {
         try {
-            const response = await axios.post(FLARESOLVERR_URL, {
+            const response = await axios.post(endpoint, {
                 cmd: 'sessions.destroy',
                 session: sessionId
             }, {
@@ -252,12 +286,13 @@ export async function destroySession(sessionId) {
  * @returns {Promise<{success: boolean, sessions?: string[], error?: string}>}
  */
 export async function listSessions() {
-    if (!FLARESOLVERR_URL) {
-        return { success: false, error: 'FlareSolverr URL not configured' };
+    const endpoint = await getEndpoint();
+    if (!endpoint) {
+        return { success: false, error: 'FlareSolverr not available' };
     }
 
     try {
-        const response = await axios.post(FLARESOLVERR_URL, {
+        const response = await axios.post(endpoint, {
             cmd: 'sessions.list'
         }, {
             timeout: 10000,
@@ -294,13 +329,14 @@ export async function listSessions() {
 export async function solveWithSession(url, sessionId, options = {}) {
     const { timeout = DEFAULT_TIMEOUT_MS, returnOnlyCookies = true } = options;
 
-    if (!FLARESOLVERR_URL) {
-        return { success: false, error: 'FlareSolverr URL not configured' };
+    const endpoint = await getEndpoint();
+    if (!endpoint) {
+        return { success: false, error: 'FlareSolverr not available' };
     }
 
     return queueRequest(async () => {
         try {
-            const response = await axios.post(FLARESOLVERR_URL, {
+            const response = await axios.post(endpoint, {
                 cmd: 'request.get',
                 url: url,
                 session: sessionId,

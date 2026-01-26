@@ -99,11 +99,22 @@ async function streamHandler(args) {
   // 3. Deduplicate
   const uniqueTorrents = deduplicateTorrents(torrents);
 
-  // 4. Save to Supabase (non-blocking)
+  // 4. Save to Supabase (with timeout to not block response too long)
+  // CRITICAL: We wait for save to complete (or timeout) to ensure data integrity
   if (uniqueTorrents.length > 0) {
-    repository.saveTorrents(uniqueTorrents).catch(err => {
-      console.error('[StreamHandler] Background save error:', err);
-    });
+    const saveStart = Date.now();
+    try {
+      // 5 second timeout for DB save - if it takes longer, continue without waiting
+      await Promise.race([
+        repository.saveTorrents(uniqueTorrents),
+        new Promise((_, reject) => setTimeout(() => reject(new Error('Save timeout')), 5000))
+      ]);
+      console.log(`[StreamHandler] Saved ${uniqueTorrents.length} torrents to cache in ${Date.now() - saveStart}ms`);
+    } catch (err) {
+      // Log with enough detail for debugging but don't block the response
+      console.error(`[StreamHandler] CACHE SAVE FAILED: ${err.message} (${uniqueTorrents.length} torrents lost)`);
+      // TODO: Could add to a retry queue here for critical reliability
+    }
   }
 
   // 5. Return formatted results
