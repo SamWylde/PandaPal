@@ -289,7 +289,7 @@ async function searchSelectedProviders(params, selectedProviders) {
             const scraper = CUSTOM_SCRAPERS[providerId];
             if (scraper.types.includes(type)) {
                 promises.push(
-                    scraper.search(imdbId || title, true)
+                    scraper.search(title || imdbId, true)
                         .catch(err => {
                             console.log(`[RealTime] ${providerId} failed: ${err.message}`);
                             return [];
@@ -512,8 +512,9 @@ async function runCustomScrapers(params) {
     for (const [id, scraper] of Object.entries(CUSTOM_SCRAPERS)) {
         if (!scraper.types.includes(type)) continue;
 
+        // Custom scrapers search by text, so prefer title over IMDB ID
         promises.push(
-            scraper.search(imdbId || title, true)
+            scraper.search(title || imdbId, true)
                 .catch(err => {
                     console.log(`[RealTime] ${id} failed: ${err.message}`);
                     return [];

@@ -11,6 +11,7 @@ import { manifest } from '../scraper/lib/manifest.js';
 import { parseConfiguration } from '../scraper/lib/configuration.js';
 import landingTemplate from '../scraper/lib/landingTemplate.js';
 import * as moch from '../scraper/moch/moch.js';
+import * as repository from '../scraper/lib/repository.js';
 
 const router = new Router();
 
@@ -59,6 +60,29 @@ router.get('/c/:configuration/stream/:type/:id.json', limiter, (req, res, next) 
 
 router.get('/c/:configuration/stream/:type/:id/:extra.json', limiter, (req, res, next) => {
   handleStream(req, res, next);
+});
+
+// Cache clear endpoint for testing/debugging
+// Usage: DELETE /cache/clear?imdbId=tt1234567 or ?kitsuId=12345
+router.delete('/cache/clear', async (req, res) => {
+  const url = new URL(req.url, `http://${req.headers.host}`);
+  const imdbId = url.searchParams.get('imdbId');
+  const kitsuId = url.searchParams.get('kitsuId');
+
+  if (!imdbId && !kitsuId) {
+    res.writeHead(400, { 'Content-Type': 'application/json' });
+    return res.end(JSON.stringify({ error: 'Missing imdbId or kitsuId parameter' }));
+  }
+
+  try {
+    const result = await repository.clearCache(imdbId, kitsuId);
+    res.writeHead(result.cleared ? 200 : 400, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify(result));
+  } catch (err) {
+    console.error('Cache clear error:', err);
+    res.writeHead(500, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ error: err.message }));
+  }
 });
 
 function handleStream(req, res, next) {
