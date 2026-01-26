@@ -354,23 +354,36 @@ async function searchWithPriority(params, indexers) {
         return searchLegacy(params);
     }
 
-    // Sort by priority (best first)
-    const sortedIndexers = compatibleIndexers.sort((a, b) => b.priority - a.priority);
+    // Sort by priority (best first), but CF-free indexers always go first
+    // requiresSolver: false = CF-free (fast), true = needs FlareSolverr (slow)
+    const sortedIndexers = compatibleIndexers.sort((a, b) => {
+        // CF-free indexers come first
+        if (a.requiresSolver === false && b.requiresSolver !== false) return -1;
+        if (b.requiresSolver === false && a.requiresSolver !== false) return 1;
+        // Then sort by priority
+        return b.priority - a.priority;
+    });
 
+    // Separate CF-free indexers from those that need FlareSolverr
+    const cfFreeIndexers = sortedIndexers.filter(idx => idx.requiresSolver === false);
+    const cfBlockedIndexers = sortedIndexers.filter(idx => idx.requiresSolver !== false);
+
+    console.log(`[RealTime] Found ${cfFreeIndexers.length} CF-free indexers, ${cfBlockedIndexers.length} need solver`);
     console.log(`[RealTime] Searching ${sortedIndexers.length} compatible indexers for ${type}`);
 
-    // FAST TIER: Top priority indexers (priority > 60)
-    const fastIndexers = sortedIndexers.filter(idx => idx.priority > 60).slice(0, 8);
-    const slowIndexers = sortedIndexers.filter(idx => idx.priority <= 60).slice(0, 10);
+    // FAST TIER: CF-free indexers first (these respond in ~1-2 seconds)
+    // Only use CF-blocked indexers if we don't have enough CF-free ones
+    const fastIndexers = cfFreeIndexers.slice(0, 8);
+    const slowIndexers = cfBlockedIndexers.slice(0, 5); // Limited slow tier since they need solver
 
     // PARALLEL EXECUTION: Fast Tier + Legacy Scrapers + Custom Scrapers
     // Legacy scrapers (YTS, 1337x, etc.) are NOT in the health database,
     // so we ALWAYS run them alongside the health-prioritized Cardigann indexers.
     const initialPromises = [];
 
-    // 1. Fast Tier (health-prioritized Cardigann indexers)
+    // 1. Fast Tier (CF-free Cardigann indexers - no waiting for solver)
     if (fastIndexers.length > 0) {
-        console.log(`[RealTime] Fast tier: ${fastIndexers.map(i => i.id).join(', ')}`);
+        console.log(`[RealTime] Fast tier (CF-free): ${fastIndexers.map(i => i.id).join(', ')}`);
         initialPromises.push(searchIndexerBatch(fastIndexers, params));
     }
 
@@ -399,11 +412,12 @@ async function searchWithPriority(params, indexers) {
         return allResults;
     }
 
-    // Run slow tier if needed
+    // Run slow tier if needed (CF-blocked indexers - would need solver but we skip it for speed)
     if (slowIndexers.length > 0) {
-        console.log(`[RealTime] Slow tier: ${slowIndexers.map(i => i.id).join(', ')}`);
-        const slowResults = await searchIndexerBatch(slowIndexers, params);
-        allResults.push(...slowResults);
+        console.log(`[RealTime] Slow tier (CF-blocked, skipping): ${slowIndexers.map(i => i.id).join(', ')}`);
+        // NOTE: We don't actually run these in fast mode since they'd need FlareSolverr
+        // const slowResults = await searchIndexerBatch(slowIndexers, params);
+        // allResults.push(...slowResults);
     }
 
     console.log(`[RealTime] Total results: ${allResults.length}`);
