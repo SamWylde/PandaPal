@@ -121,6 +121,14 @@ function detectBlockType(response, responseText) {
     return null;
 }
 
+// Health check timing constraints (must fit in 280s Vercel timeout)
+// 5 indexers × 5 domains × 10s = 250s normal checks (worst case all timeout)
+// + 5 indexers × 1 FlareSolverr × 20s = 100s FlareSolverr worst case
+// But FlareSolverr only runs if CF block, so realistically:
+// 5 indexers × 5 domains × 2s (fast) + 5 × 20s (FlareSolverr) = 150s typical
+const MAX_DOMAINS_PER_INDEXER = 5;
+const FLARESOLVERR_HEALTH_TIMEOUT = 20000; // 20s (not 45s)
+
 /**
  * Run health check for a single indexer (Generic Logic)
  */
@@ -138,6 +146,12 @@ async function checkIndexer(indexerId) {
 
     if (domains.length === 0) {
         return { success: false, error: 'No domains configured', responseTime: 0 };
+    }
+
+    // LIMIT: Only test first 5 domains to stay within timeout budget
+    if (domains.length > MAX_DOMAINS_PER_INDEXER) {
+        console.log(`[HealthCheck] ${indexerId}: Limiting from ${domains.length} to ${MAX_DOMAINS_PER_INDEXER} domains`);
+        domains = domains.slice(0, MAX_DOMAINS_PER_INDEXER);
     }
 
     // 2. Get definition to construct path
@@ -192,6 +206,8 @@ async function checkIndexer(indexerId) {
 
     // 3. Test each domain
     let lastError = null;
+    let triedFlareSolverr = false; // Only try FlareSolverr ONCE per indexer to save time
+
     for (const domain of domains) {
         const startTime = Date.now();
         // Remove trailing slash from domain to avoid double slash with searchPath
@@ -229,12 +245,14 @@ async function checkIndexer(indexerId) {
             if (blockType) {
                 console.log(`[HealthCheck] ${indexerId} (${domain}): ${blockType}`);
 
-                // Try FlareSolverr to bypass Cloudflare protection
-                if (blockType.toLowerCase().includes('cloudflare') || blockType.toLowerCase().includes('ddos')) {
-                    console.log(`[HealthCheck] ${indexerId}: Attempting FlareSolverr bypass...`);
+                // Try FlareSolverr ONCE per indexer (not per domain) to save time
+                const isCFBlock = blockType.toLowerCase().includes('cloudflare') || blockType.toLowerCase().includes('ddos');
+                if (isCFBlock && !triedFlareSolverr) {
+                    triedFlareSolverr = true; // Only try once
+                    console.log(`[HealthCheck] ${indexerId}: Attempting FlareSolverr bypass (once per indexer)...`);
                     try {
                         const flareResult = await flareSolverr.solveCFChallenge(testUrl, {
-                            timeout: 45000, // Give FlareSolverr more time
+                            timeout: FLARESOLVERR_HEALTH_TIMEOUT, // 20s, not 45s
                             returnOnlyCookies: false
                         });
 
@@ -254,6 +272,8 @@ async function checkIndexer(indexerId) {
                     } catch (flareErr) {
                         console.log(`[HealthCheck] ${indexerId}: FlareSolverr error - ${flareErr.message}`);
                     }
+                } else if (isCFBlock && triedFlareSolverr) {
+                    console.log(`[HealthCheck] ${indexerId} (${domain}): Skipping FlareSolverr (already tried)`);
                 }
 
                 lastError = blockType;
