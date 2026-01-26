@@ -239,6 +239,59 @@ export class CardigannEngine {
             return isTruthy ? content : '';
         });
 
+        // CRITICAL: Handle template FUNCTIONS before simple variable replacement
+        // These are Cardigann/Prowlarr functions like re_replace, urlEncode, pathEscape
+
+        // {{ re_replace .Keywords "pattern" "replacement" }} - regex replacement
+        const reReplacePattern = /\{\{\s*re_replace\s+(\.[^\s]+)\s+"([^"]*)"\s+"([^"]*)"\s*\}\}/gi;
+        result = result.replace(reReplacePattern, (match, varName, pattern, replacement) => {
+            const value = vars[varName] || '';
+            try {
+                // Unescape the pattern (YAML escapes backslashes)
+                const unescapedPattern = pattern.replace(/\\\\/g, '\\');
+                return value.replace(new RegExp(unescapedPattern, 'g'), replacement);
+            } catch (e) {
+                console.warn(`[Cardigann] re_replace failed for pattern "${pattern}": ${e.message}`);
+                return value;
+            }
+        });
+
+        // {{ pathEscape .Keywords }} or {{ PathEscape .Keywords }} - URL path encoding
+        const pathEscapePattern = /\{\{\s*[pP]athEscape\s+(\.[^\s}]+)\s*\}\}/gi;
+        result = result.replace(pathEscapePattern, (match, varName) => {
+            const value = vars[varName] || '';
+            return encodeURIComponent(value).replace(/%20/g, '+');
+        });
+
+        // {{ urlEncode .Keywords }} or {{ urlencode .Keywords }} - URL query encoding
+        const urlEncodePattern = /\{\{\s*url[eE]ncode\s+(\.[^\s}]+)\s*\}\}/gi;
+        result = result.replace(urlEncodePattern, (match, varName) => {
+            const value = vars[varName] || '';
+            return encodeURIComponent(value);
+        });
+
+        // {{ QueryEscape .Keywords }} - same as urlEncode
+        const queryEscapePattern = /\{\{\s*[qQ]ueryEscape\s+(\.[^\s}]+)\s*\}\}/gi;
+        result = result.replace(queryEscapePattern, (match, varName) => {
+            const value = vars[varName] || '';
+            return encodeURIComponent(value);
+        });
+
+        // {{ join .Keywords "+" }} - join with delimiter (usually for splitting and rejoining)
+        const joinPattern = /\{\{\s*join\s+(\.[^\s]+)\s+"([^"]*)"\s*\}\}/gi;
+        result = result.replace(joinPattern, (match, varName, delimiter) => {
+            const value = vars[varName] || '';
+            // Split by whitespace and rejoin with delimiter
+            return value.split(/\s+/).filter(w => w).join(delimiter);
+        });
+
+        // {{ replace .Keywords " " "+" }} - simple string replacement
+        const replacePattern = /\{\{\s*replace\s+(\.[^\s]+)\s+"([^"]*)"\s+"([^"]*)"\s*\}\}/gi;
+        result = result.replace(replacePattern, (match, varName, search, replacement) => {
+            const value = vars[varName] || '';
+            return value.split(search).join(replacement);
+        });
+
         // Then replace simple variables
         for (const [varName, varValue] of Object.entries(vars)) {
             // Handle both {{ .Var }} and {{.Var}} formats
@@ -250,7 +303,14 @@ export class CardigannEngine {
         // CLEANUP: Remove any remaining {{ .Config.* }} or {{ .* }} template tags
         // These are user-configurable settings we don't have values for
         result = result.replace(/\{\{\s*\.Config\.[^}]+\}\}/g, '');
-        result = result.replace(/\{\{\s*\.[^}]+\}\}/g, '');
+        // Only remove simple variable patterns, not function calls that we missed
+        result = result.replace(/\{\{\s*\.[a-zA-Z][a-zA-Z0-9_.]*\s*\}\}/g, '');
+
+        // Log warning for any remaining unprocessed template tags
+        const remainingTemplates = result.match(/\{\{[^}]+\}\}/g);
+        if (remainingTemplates) {
+            console.warn(`[Cardigann] Unprocessed template tags: ${remainingTemplates.join(', ')}`);
+        }
 
         // Clean up any leftover artifacts (trailing commas, double dashes, etc.)
         result = result.replace(/,+\s*$/, '');  // Trailing commas
