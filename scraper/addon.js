@@ -160,14 +160,63 @@ function formatResults(cachedResults) {
 
 function formatRealtimeResults(torrents) {
   // Format real-time results to streams
-  return torrents.map(t => ({
-    name: `[${t.provider}] ${t.resolution || ''}`,
-    title: `${t.title}\n👤 ${t.seeders || 0} · 💾 ${formatSize(t.size)}`,
-    infoHash: t.infoHash,
-    behaviorHints: {
-      bingeGroup: `torrentio|${t.infoHash}`
+  return torrents.map(t => {
+    // Extract trackers from magnetUrl if available
+    const sources = extractSources(t.magnetUrl, t.infoHash);
+
+    return {
+      name: `[${t.provider || 'Unknown'}] ${t.resolution || ''}`,
+      title: `${t.title}\n👤 ${t.seeders || 0} · 💾 ${formatSize(t.size)}`,
+      infoHash: t.infoHash,
+      sources: sources,
+      behaviorHints: {
+        bingeGroup: `torrentio|${t.infoHash}`
+      }
+    };
+  });
+}
+
+// Default trackers for DHT/fallback
+const DEFAULT_TRACKERS = [
+  'udp://tracker.opentrackr.org:1337/announce',
+  'udp://open.stealth.si:80/announce',
+  'udp://tracker.torrent.eu.org:451/announce',
+  'udp://tracker.bittor.pw:1337/announce',
+  'udp://public.popcorn-tracker.org:6969/announce',
+  'udp://tracker.dler.org:6969/announce',
+  'udp://exodus.desync.com:6969',
+  'udp://open.demonii.com:1337/announce'
+];
+
+function extractSources(magnetUrl, infoHash) {
+  const sources = [];
+
+  // Extract trackers from magnet URL
+  if (magnetUrl) {
+    try {
+      const url = new URL(magnetUrl);
+      const trackers = url.searchParams.getAll('tr');
+      trackers.forEach(tracker => {
+        sources.push(`tracker:${tracker}`);
+      });
+    } catch (e) {
+      // Invalid URL, ignore
     }
-  }));
+  }
+
+  // Add default trackers if we didn't find any
+  if (sources.length === 0) {
+    DEFAULT_TRACKERS.forEach(tracker => {
+      sources.push(`tracker:${tracker}`);
+    });
+  }
+
+  // Always add DHT source
+  if (infoHash) {
+    sources.push(`dht:${infoHash}`);
+  }
+
+  return sources;
 }
 
 function formatSize(bytes) {
