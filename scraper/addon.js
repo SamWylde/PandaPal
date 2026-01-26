@@ -160,17 +160,25 @@ function formatResults(cachedResults) {
 
 function formatRealtimeResults(torrents) {
   // Format real-time results to streams
+  // IMPORTANT: name must be TWO lines for quality filtering to work:
+  // Line 1: Addon name (e.g., "Torrentio")
+  // Line 2: Quality info (e.g., "1080p HDR")
   return torrents.map(t => {
     // Extract trackers from magnetUrl if available
     const sources = extractSources(t.magnetUrl, t.infoHash);
 
+    // Build quality string for line 2 (used by quality filters)
+    const quality = t.resolution || '';
+
     return {
-      name: `[${t.provider || 'Unknown'}] ${t.resolution || ''}`,
-      title: `${t.title}\n👤 ${t.seeders || 0} · 💾 ${formatSize(t.size)}`,
+      // Two-line format: "Torrentio\n1080p" - required for quality filtering
+      name: `Torrentio\n${quality}`,
+      // Title shows provider and details
+      title: `${t.title}\n👤 ${t.seeders || 0} · 💾 ${formatSize(t.size)} · ⚙️ ${t.provider || 'Unknown'}`,
       infoHash: t.infoHash,
       sources: sources,
       behaviorHints: {
-        bingeGroup: `torrentio|${t.infoHash}`
+        bingeGroup: `torrentio|${quality}|${t.infoHash}`
       }
     };
   });
