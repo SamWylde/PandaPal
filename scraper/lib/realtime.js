@@ -19,10 +19,68 @@ import { searchSolidTorrents } from './sources/solidtorrents.js';
 import { getWorkingIndexers } from './healthCheck.js';
 import { searchWithCardigann } from './cardigann/search.js';
 import { getCachedSession } from './cfSolver.js';
-import { resolveTitle } from './metadata.js';
 
-// Hospital-grade timeout: Ensures search never hangs
-const MAX_SEARCH_TIMEOUT_MS = 45000; // 45 seconds max for entire search
+// FAST MODE: Reduced timeout for snappy UX
+// If scrapers are blocked, fail fast instead of waiting for FlareSolverr
+const MAX_SEARCH_TIMEOUT_MS = 15000; // 15 seconds max for entire search
+
+// Title cache to avoid repeated API calls
+const titleCache = new Map();
+const TITLE_CACHE_TTL = 24 * 60 * 60 * 1000; // 24 hours
+
+/**
+ * Resolve IMDB ID to title using Stremio's Cinemeta API
+ * @param {string} imdbId - IMDB ID (e.g., tt1234567)
+ * @param {string} type - Content type (movie or series)
+ * @returns {Promise<string|null>} - Resolved title or null
+ */
+async function resolveImdbTitle(imdbId, type) {
+    if (!imdbId || !imdbId.startsWith('tt')) return null;
+
+    // Check cache first
+    const cacheKey = `${imdbId}:${type}`;
+    const cached = titleCache.get(cacheKey);
+    if (cached && Date.now() - cached.timestamp < TITLE_CACHE_TTL) {
+        return cached.title;
+    }
+
+    try {
+        const metaType = type === 'series' ? 'series' : 'movie';
+        const url = `https://v3-cinemeta.strem.io/meta/${metaType}/${imdbId}.json`;
+
+        const controller = new AbortController();
+        const timeout = setTimeout(() => controller.abort(), 5000);
+
+        const response = await fetch(url, {
+            signal: controller.signal,
+            headers: { 'Accept': 'application/json' }
+        });
+        clearTimeout(timeout);
+
+        if (!response.ok) {
+            console.log(`[RealTime] Cinemeta returned ${response.status} for ${imdbId}`);
+            return null;
+        }
+
+        const data = await response.json();
+        const title = data?.meta?.name || null;
+
+        if (title) {
+            // Cache the result
+            titleCache.set(cacheKey, { title, timestamp: Date.now() });
+            console.log(`[RealTime] Resolved ${imdbId} to title: "${title}"`);
+        }
+
+        return title;
+    } catch (err) {
+        if (err.name === 'AbortError') {
+            console.log(`[RealTime] Cinemeta request timed out for ${imdbId}`);
+        } else {
+            console.log(`[RealTime] Failed to resolve ${imdbId}: ${err.message}`);
+        }
+        return null;
+    }
+}
 
 const withTimeout = (promise, ms, fallback = []) => {
     const timeout = new Promise((resolve) =>
@@ -159,26 +217,25 @@ export async function searchTorrents(params) {
  * Internal search implementation
  */
 async function searchTorrentsInternal(params) {
-    const { imdbId, kitsuId, type, season, episode, title, providers, config } = params;
+    const { imdbId, kitsuId, type, season, episode, providers, config } = params;
+    let { title } = params;
 
-    // CRITICAL: Resolve title from IMDB ID if not provided
-    // This is essential for filtering garbage results from bad indexers
-    let resolvedTitle = title;
-    if (!resolvedTitle && imdbId) {
-        try {
-            resolvedTitle = await resolveTitle(imdbId, type);
-        } catch (e) {
-            console.warn(`[RealTime] Title resolution failed: ${e.message}`);
+    // If no title provided but we have IMDB ID, resolve it via Cinemeta
+    // CRITICAL: This is essential for filtering garbage results from bad indexers
+    if (!title && imdbId) {
+        const resolvedTitle = await resolveImdbTitle(imdbId, type);
+        if (resolvedTitle) {
+            title = resolvedTitle;
+            // Update params so title propagates to all search functions
+            params = { ...params, title };
         }
     }
 
-    // Use resolved title for search, fall back to IMDB/Kitsu ID
-    const searchQuery = resolvedTitle || imdbId || kitsuId;
-
+    const searchQuery = title || imdbId || kitsuId;
     console.log(`[RealTime] Starting search for ${searchQuery} (${type})`);
 
     // Update params with resolved title for downstream use
-    const searchParams = { ...params, title: resolvedTitle };
+    const searchParams = { ...params, title };
 
     // Check if user selected specific providers or wants smart mode
     const useSmartMode = !providers || providers.length === 0 || providers.includes('smart');
@@ -216,8 +273,8 @@ async function searchTorrentsInternal(params) {
     // This removes garbage results from indexers that return homepage listings
     // instead of actual search results (e.g., arab-torrents returning "One Piece"
     // when we searched for "One Fast Move")
-    if (resolvedTitle && results.length > 0) {
-        results = filterByRelevance(results, resolvedTitle, imdbId);
+    if (title && results.length > 0) {
+        results = filterByRelevance(results, title, imdbId);
     }
 
     return results;
@@ -249,7 +306,7 @@ async function searchSelectedProviders(params, selectedProviders) {
             const scraper = CUSTOM_SCRAPERS[providerId];
             if (scraper.types.includes(type)) {
                 promises.push(
-                    scraper.search(imdbId || title, true)
+                    scraper.search(title || imdbId, true)
                         .catch(err => {
                             console.log(`[RealTime] ${providerId} failed: ${err.message}`);
                             return [];
@@ -313,36 +370,54 @@ async function searchWithPriority(params, indexers) {
         return searchLegacy(params);
     }
 
-    // Sort by priority (best first)
-    const sortedIndexers = compatibleIndexers.sort((a, b) => b.priority - a.priority);
+    // Sort by priority (best first), but CF-free indexers always go first
+    // requiresSolver: false = CF-free (fast), true = needs FlareSolverr (slow)
+    const sortedIndexers = compatibleIndexers.sort((a, b) => {
+        // CF-free indexers come first
+        if (a.requiresSolver === false && b.requiresSolver !== false) return -1;
+        if (b.requiresSolver === false && a.requiresSolver !== false) return 1;
+        // Then sort by priority
+        return b.priority - a.priority;
+    });
 
+    // Separate CF-free indexers from those that need FlareSolverr
+    const cfFreeIndexers = sortedIndexers.filter(idx => idx.requiresSolver === false);
+    const cfBlockedIndexers = sortedIndexers.filter(idx => idx.requiresSolver !== false);
+
+    console.log(`[RealTime] Found ${cfFreeIndexers.length} CF-free indexers, ${cfBlockedIndexers.length} need solver`);
     console.log(`[RealTime] Searching ${sortedIndexers.length} compatible indexers for ${type}`);
 
-    // FAST TIER: Top priority indexers (priority > 60)
-    const fastIndexers = sortedIndexers.filter(idx => idx.priority > 60).slice(0, 8);
-    const slowIndexers = sortedIndexers.filter(idx => idx.priority <= 60).slice(0, 10);
+    // FAST TIER: CF-free indexers first (these respond in ~1-2 seconds)
+    // Only use CF-blocked indexers if we don't have enough CF-free ones
+    const fastIndexers = cfFreeIndexers.slice(0, 8);
+    const slowIndexers = cfBlockedIndexers.slice(0, 5); // Limited slow tier since they need solver
 
-    // PARALLEL EXECUTION: Fast Tier + Custom Scrapers
-    // This ensures we get high-quality results from popular indexers AND specialty results from custom ones
-    // without one blocking the other or race conditions causing data loss.
+    // PARALLEL EXECUTION: Fast Tier + Legacy Scrapers + Custom Scrapers
+    // Legacy scrapers (YTS, 1337x, etc.) are NOT in the health database,
+    // so we ALWAYS run them alongside the health-prioritized Cardigann indexers.
     const initialPromises = [];
 
-    // 1. Fast Tier
+    // 1. Fast Tier (CF-free Cardigann indexers - no waiting for solver)
     if (fastIndexers.length > 0) {
-        console.log(`[RealTime] Fast tier: ${fastIndexers.map(i => i.id).join(', ')}`);
+        console.log(`[RealTime] Fast tier (CF-free): ${fastIndexers.map(i => i.id).join(', ')}`);
         initialPromises.push(searchIndexerBatch(fastIndexers, params));
     }
 
-    // 2. Custom Scrapers (Always run these)
+    // 2. Legacy Scrapers (YTS, 1337x, TorrentGalaxy, EZTV, etc.) - ALWAYS run these
+    initialPromises.push(runAllLegacyScrapers(params));
+
+    // 3. Custom Scrapers (SolidTorrents, etc.) - ALWAYS run these
     initialPromises.push(runCustomScrapers(params));
 
-    // Wait for both to finish
-    const [fastResults, customResults] = await Promise.all(
+    // Wait for all to finish
+    const results = await Promise.all(
         initialPromises.map(p => p.catch(e => [])) // Catch individual errors so Promise.all doesn't fail
     );
 
-    if (fastResults && fastResults.length > 0) allResults.push(...fastResults);
-    if (customResults && customResults.length > 0) allResults.push(...customResults);
+    // Flatten all results
+    for (const result of results) {
+        if (result && result.length > 0) allResults.push(...result);
+    }
 
     // Check if we need more results
     const totalSoFar = allResults.length;
@@ -353,11 +428,12 @@ async function searchWithPriority(params, indexers) {
         return allResults;
     }
 
-    // Run slow tier if needed
+    // Run slow tier if needed (CF-blocked indexers - would need solver but we skip it for speed)
     if (slowIndexers.length > 0) {
-        console.log(`[RealTime] Slow tier: ${slowIndexers.map(i => i.id).join(', ')}`);
-        const slowResults = await searchIndexerBatch(slowIndexers, params);
-        allResults.push(...slowResults);
+        console.log(`[RealTime] Slow tier (CF-blocked, skipping): ${slowIndexers.map(i => i.id).join(', ')}`);
+        // NOTE: We don't actually run these in fast mode since they'd need FlareSolverr
+        // const slowResults = await searchIndexerBatch(slowIndexers, params);
+        // allResults.push(...slowResults);
     }
 
     console.log(`[RealTime] Total results: ${allResults.length}`);
@@ -435,21 +511,25 @@ async function runLegacyScraper(indexerId, scraper, params, workingDomain) {
     }
 
     // Call the appropriate scraper based on type
+    // Prefer title over IMDB ID for scrapers that search by text
     switch (indexerId) {
         case 'yts':
+            // YTS API natively supports IMDB IDs
             return scraper.search(imdbId);
         case 'eztv':
+            // EZTV API natively supports IMDB IDs
             return scraper.search(imdbId, season, episode);
         case 'nyaasi':
             return scraper.search(kitsuId, title, episode);
         case '1337x':
         case 'torrentgalaxyclone':
-            return scraper.search(imdbId, type);
+            // These sites search by text, so prefer title over IMDB ID
+            return scraper.search(title || imdbId, type);
         case 'bitsearch':
-            // Pass CF session if available
-            return scraper.search(imdbId || title, !cfSession);
+            // Pass CF session if available, prefer title
+            return scraper.search(title || imdbId, !cfSession);
         default:
-            return scraper.search(imdbId || title);
+            return scraper.search(title || imdbId);
     }
 }
 
@@ -463,8 +543,9 @@ async function runCustomScrapers(params) {
     for (const [id, scraper] of Object.entries(CUSTOM_SCRAPERS)) {
         if (!scraper.types.includes(type)) continue;
 
+        // Custom scrapers search by text, so prefer title over IMDB ID
         promises.push(
-            scraper.search(imdbId || title, true)
+            scraper.search(title || imdbId, true)
                 .catch(err => {
                     console.log(`[RealTime] ${id} failed: ${err.message}`);
                     return [];
@@ -476,6 +557,44 @@ async function runCustomScrapers(params) {
     return results
         .filter(r => r.status === 'fulfilled')
         .flatMap(r => r.value || []);
+}
+
+/**
+ * Run ALL legacy scrapers (YTS, 1337x, TorrentGalaxy, EZTV, etc.)
+ * These are hardcoded JavaScript scrapers NOT tracked by health checks.
+ * They're popular and reliable, so we ALWAYS run them in SMART mode.
+ */
+async function runAllLegacyScrapers(params) {
+    const { imdbId, kitsuId, type, season, episode, title } = params;
+    const promises = [];
+
+    console.log(`[RealTime] Running legacy scrapers for ${type}`);
+
+    for (const [id, scraper] of Object.entries(LEGACY_SCRAPERS)) {
+        // Skip if scraper doesn't support this content type
+        if (!scraper.types.includes(type)) continue;
+
+        // Run the scraper with appropriate parameters
+        const searchPromise = runLegacyScraper(id, scraper, params, null)
+            .catch(err => {
+                console.log(`[RealTime] Legacy ${id} failed: ${err.message}`);
+                return [];
+            });
+
+        promises.push(searchPromise);
+    }
+
+    if (promises.length === 0) {
+        return [];
+    }
+
+    const results = await Promise.allSettled(promises);
+    const torrents = results
+        .filter(r => r.status === 'fulfilled')
+        .flatMap(r => r.value || []);
+
+    console.log(`[RealTime] Legacy scrapers returned ${torrents.length} results`);
+    return torrents;
 }
 
 

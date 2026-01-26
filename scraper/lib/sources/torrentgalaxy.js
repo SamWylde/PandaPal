@@ -42,12 +42,18 @@ export async function searchTorrentGalaxy(imdbId, type) {
     const errors = [];
     const domains = await getDomains();
 
-    // Try each domain 
-    for (const baseUrl of domains) {
+    // FAST MODE: Only try first 2 domains
+    const domainsToTry = domains.slice(0, 2);
+
+    // Try each domain
+    for (const baseUrl of domainsToTry) {
         const searchUrl = `${baseUrl}/torrents.php?search=${encodeURIComponent(imdbId)}`;
         try {
-            // performRequest handles Cloudflare detection and browser fallback
-            const response = await performRequest(searchUrl);
+            // FAST MODE: Skip FlareSolverr (45s timeout) - fail fast if blocked
+            const response = await performRequest(searchUrl, {
+                skipBrowserFallback: true,
+                timeout: 5000
+            });
 
             const $ = cheerio.load(response.data);
             const torrents = [];
