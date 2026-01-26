@@ -206,6 +206,39 @@ export async function saveTorrents(torrents) {
 }
 
 /**
+ * Clear cached torrents for a specific content ID
+ * Useful for testing and forcing fresh searches
+ */
+export async function clearCache(imdbId, kitsuId) {
+  if (!supabase) return { cleared: false, reason: 'No Supabase connection' };
+
+  try {
+    let query = supabase.from('file').delete();
+
+    if (imdbId) {
+      query = query.eq('imdbId', imdbId);
+    } else if (kitsuId) {
+      query = query.eq('kitsuId', kitsuId);
+    } else {
+      return { cleared: false, reason: 'No imdbId or kitsuId provided' };
+    }
+
+    const { error, count } = await query;
+
+    if (error) {
+      console.error('Error clearing cache:', error);
+      return { cleared: false, reason: error.message };
+    }
+
+    console.log(`Repository: Cleared cache for ${imdbId || kitsuId}`);
+    return { cleared: true, imdbId, kitsuId };
+  } catch (error) {
+    console.error('Repository: Error in clearCache:', error);
+    return { cleared: false, reason: error.message };
+  }
+}
+
+/**
  * Get cached torrents if not older than CACHE_HOURS
  */
 export async function getCachedTorrents(imdbId, kitsuId, type, season, episode) {
