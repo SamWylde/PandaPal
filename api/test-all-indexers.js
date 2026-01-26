@@ -91,12 +91,19 @@ async function testIndexer(indexerId, query, type, imdbId) {
 
         result.resultCount = results.length;
 
-        // Check relevance
+        // Check relevance - DEBUG: log filter inputs
+        console.log(`[TestIndexer:${indexerId}] Filtering ${results.length} results with query="${query}"`);
+        if (results.length > 0) {
+            console.log(`[TestIndexer:${indexerId}] Sample title: "${results[0]?.title || results[0]?.name || 'NO TITLE'}"`);
+        }
+
         const relevant = filterByRelevance(results, query, imdbId);
         result.relevantCount = relevant.length;
 
-        // Get sample titles
-        result.sampleTitles = results.slice(0, 5).map(r => r.title || r.name || 'Unknown');
+        console.log(`[TestIndexer:${indexerId}] After filter: ${relevant.length}/${results.length} relevant`);
+
+        // Get sample titles from RELEVANT results (not all results!)
+        result.sampleTitles = relevant.slice(0, 5).map(r => r.title || r.name || 'Unknown');
 
         // Determine status
         if (results.length === 0) {
