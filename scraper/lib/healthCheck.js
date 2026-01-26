@@ -7,12 +7,18 @@
 
 import { createClient } from '@supabase/supabase-js';
 import axios from 'axios';
+import https from 'https';
 import { getScraperConfig, supabase } from './db.js';
 import { PUBLIC_INDEXERS, DefinitionSync } from './cardigann/sync.js';
 import { parseCardigannYaml, extractSearchConfig } from './cardigann/parser.js';
 import { getCachedSession, requestWithCFSession } from './cfSolver.js';
 import * as flareSolverr from './flareSolverr.js';
 // NOTE: autoUpdateDomains is now called by separate /api/cron/prowlarr-update endpoint
+
+// HTTPS agent that ignores SSL certificate errors (for sites with self-signed/expired certs)
+const httpsAgent = new https.Agent({
+    rejectUnauthorized: false
+});
 
 const supabaseUrl = process.env.SUPABASE_URL; // Still needed for passed logic if any? 
 // Actually supabase instance is mostly used.
@@ -206,6 +212,7 @@ async function checkIndexer(indexerId) {
             } else {
                 response = await axios.get(testUrl, {
                     timeout: 10000,
+                    httpsAgent, // Allow self-signed/expired SSL certificates
                     headers: {
                         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/120.0.0.0',
                         'Accept': checkType === 'api' ? 'application/json' : 'text/html,application/xml',
