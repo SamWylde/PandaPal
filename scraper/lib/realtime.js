@@ -23,6 +23,64 @@ import { getCachedSession } from './cfSolver.js';
 // Hospital-grade timeout: Ensures search never hangs
 const MAX_SEARCH_TIMEOUT_MS = 45000; // 45 seconds max for entire search
 
+// Title cache to avoid repeated API calls
+const titleCache = new Map();
+const TITLE_CACHE_TTL = 24 * 60 * 60 * 1000; // 24 hours
+
+/**
+ * Resolve IMDB ID to title using Stremio's Cinemeta API
+ * @param {string} imdbId - IMDB ID (e.g., tt1234567)
+ * @param {string} type - Content type (movie or series)
+ * @returns {Promise<string|null>} - Resolved title or null
+ */
+async function resolveImdbTitle(imdbId, type) {
+    if (!imdbId || !imdbId.startsWith('tt')) return null;
+
+    // Check cache first
+    const cacheKey = `${imdbId}:${type}`;
+    const cached = titleCache.get(cacheKey);
+    if (cached && Date.now() - cached.timestamp < TITLE_CACHE_TTL) {
+        return cached.title;
+    }
+
+    try {
+        const metaType = type === 'series' ? 'series' : 'movie';
+        const url = `https://v3-cinemeta.strem.io/meta/${metaType}/${imdbId}.json`;
+
+        const controller = new AbortController();
+        const timeout = setTimeout(() => controller.abort(), 5000);
+
+        const response = await fetch(url, {
+            signal: controller.signal,
+            headers: { 'Accept': 'application/json' }
+        });
+        clearTimeout(timeout);
+
+        if (!response.ok) {
+            console.log(`[RealTime] Cinemeta returned ${response.status} for ${imdbId}`);
+            return null;
+        }
+
+        const data = await response.json();
+        const title = data?.meta?.name || null;
+
+        if (title) {
+            // Cache the result
+            titleCache.set(cacheKey, { title, timestamp: Date.now() });
+            console.log(`[RealTime] Resolved ${imdbId} to title: "${title}"`);
+        }
+
+        return title;
+    } catch (err) {
+        if (err.name === 'AbortError') {
+            console.log(`[RealTime] Cinemeta request timed out for ${imdbId}`);
+        } else {
+            console.log(`[RealTime] Failed to resolve ${imdbId}: ${err.message}`);
+        }
+        return null;
+    }
+}
+
 const withTimeout = (promise, ms, fallback = []) => {
     const timeout = new Promise((resolve) =>
         setTimeout(() => {
@@ -158,9 +216,20 @@ export async function searchTorrents(params) {
  * Internal search implementation
  */
 async function searchTorrentsInternal(params) {
-    const { imdbId, kitsuId, type, season, episode, title, providers, config } = params;
-    const searchQuery = title || imdbId || kitsuId;
+    const { imdbId, kitsuId, type, season, episode, providers, config } = params;
+    let { title } = params;
 
+    // If no title provided but we have IMDB ID, resolve it via Cinemeta
+    if (!title && imdbId) {
+        const resolvedTitle = await resolveImdbTitle(imdbId, type);
+        if (resolvedTitle) {
+            title = resolvedTitle;
+            // Update params so title propagates to all search functions
+            params = { ...params, title };
+        }
+    }
+
+    const searchQuery = title || imdbId || kitsuId;
     console.log(`[RealTime] Starting search for ${searchQuery} (${type})`);
 
     // Check if user selected specific providers or wants smart mode
@@ -406,21 +475,25 @@ async function runLegacyScraper(indexerId, scraper, params, workingDomain) {
     }
 
     // Call the appropriate scraper based on type
+    // Prefer title over IMDB ID for scrapers that search by text
     switch (indexerId) {
         case 'yts':
+            // YTS API natively supports IMDB IDs
             return scraper.search(imdbId);
         case 'eztv':
+            // EZTV API natively supports IMDB IDs
             return scraper.search(imdbId, season, episode);
         case 'nyaasi':
             return scraper.search(kitsuId, title, episode);
         case '1337x':
         case 'torrentgalaxyclone':
-            return scraper.search(imdbId, type);
+            // These sites search by text, so prefer title over IMDB ID
+            return scraper.search(title || imdbId, type);
         case 'bitsearch':
-            // Pass CF session if available
-            return scraper.search(imdbId || title, !cfSession);
+            // Pass CF session if available, prefer title
+            return scraper.search(title || imdbId, !cfSession);
         default:
-            return scraper.search(imdbId || title);
+            return scraper.search(title || imdbId);
     }
 }
 
