@@ -81,9 +81,13 @@ export async function searchWithCardigann(indexerId, query, options = {}) {
             // Found in DB! Use this directly. No GitHub sync needed.
             const result = await engineInstance.search(dbConfig, query, options);
             if (result.success) {
+                // NOTE: Do NOT blindly set imdbId on all results!
+                // Only set it if the torrent title/content actually matches the IMDB ID.
+                // Setting it on all results breaks the relevance filter.
                 return result.results.map(r => ({
                     ...r,
-                    imdbId: options.imdbId,
+                    // Only preserve existing imdbId if the torrent itself has one
+                    // imdbId: options.imdbId,  // REMOVED - this broke filtering!
                     type: options.type || 'movie'
                 }));
             }
@@ -118,9 +122,9 @@ export async function searchWithCardigann(indexerId, query, options = {}) {
     const result = await engineInstance.search(definition, query, options);
 
     if (result.success) {
+        // NOTE: Do NOT blindly set imdbId on all results!
         return result.results.map(r => ({
             ...r,
-            imdbId: options.imdbId,
             type: options.type || 'movie'
         }));
     }
