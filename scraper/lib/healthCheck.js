@@ -10,8 +10,8 @@ import axios from 'axios';
 import { getScraperConfig, supabase } from './db.js';
 import { PUBLIC_INDEXERS, DefinitionSync } from './cardigann/sync.js';
 import { parseCardigannYaml, extractSearchConfig } from './cardigann/parser.js';
-// NOTE: CF bypass disabled - Vercel serverless cannot solve Turnstile challenges
-// (requires headed browser + xvfb which aren't available on serverless)
+import { getCachedSession, requestWithCFSession } from './cfSolver.js';
+import * as flareSolverr from './flareSolverr.js';
 // NOTE: autoUpdateDomains is now called by separate /api/cron/prowlarr-update endpoint
 
 const supabaseUrl = process.env.SUPABASE_URL; // Still needed for passed logic if any? 
@@ -221,9 +221,34 @@ async function checkIndexer(indexerId) {
             const blockType = detectBlockType(response, responseText);
             if (blockType) {
                 console.log(`[HealthCheck] ${indexerId} (${domain}): ${blockType}`);
-                // NOTE: CF bypass disabled - Vercel serverless cannot solve Turnstile challenges
-                // (requires headed browser + xvfb which aren't available on serverless)
-                // Just mark as blocked and try next domain quickly
+
+                // Try FlareSolverr to bypass Cloudflare protection
+                if (blockType.toLowerCase().includes('cloudflare') || blockType.toLowerCase().includes('ddos')) {
+                    console.log(`[HealthCheck] ${indexerId}: Attempting FlareSolverr bypass...`);
+                    try {
+                        const flareResult = await flareSolverr.solveCFChallenge(testUrl, {
+                            timeout: 45000, // Give FlareSolverr more time
+                            returnOnlyCookies: false
+                        });
+
+                        if (flareResult.success && flareResult.status && flareResult.status < 400) {
+                            const responseTime = Date.now() - startTime;
+                            console.log(`[HealthCheck] ${indexerId} (${domain}): SUCCESS via FlareSolverr in ${responseTime}ms`);
+                            return {
+                                success: true,
+                                responseTime,
+                                workingDomain: domain,
+                                error: null,
+                                solver: 'flaresolverr'
+                            };
+                        } else {
+                            console.log(`[HealthCheck] ${indexerId}: FlareSolverr failed - ${flareResult.error || 'Unknown error'}`);
+                        }
+                    } catch (flareErr) {
+                        console.log(`[HealthCheck] ${indexerId}: FlareSolverr error - ${flareErr.message}`);
+                    }
+                }
+
                 lastError = blockType;
                 continue; // Try next domain
             }
