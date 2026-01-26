@@ -43,12 +43,18 @@ export async function search1337x(query, type) {
     const errors = [];
     const domains = await getDomains();
 
-    // Try each domain 
-    for (const baseUrl of domains) {
+    // FAST MODE: Only try first 2 domains
+    const domainsToTry = domains.slice(0, 2);
+
+    // Try each domain
+    for (const baseUrl of domainsToTry) {
         const searchUrl = `${baseUrl}/search/${encodeURIComponent(query)}/1/`;
         try {
-            // performRequest handles Cloudflare detection and browser fallback
-            const response = await performRequest(searchUrl);
+            // FAST MODE: Skip FlareSolverr (45s timeout) - fail fast if blocked
+            const response = await performRequest(searchUrl, {
+                skipBrowserFallback: true,
+                timeout: 5000
+            });
 
             // Access response.data (which might be from axios or the browser html string)
             const $ = cheerio.load(response.data);
@@ -115,8 +121,11 @@ export async function search1337x(query, type) {
 
 async function getInfoHash(detailUrl) {
     try {
-        // Also use performRequest here as detail pages are also protected
-        const response = await performRequest(detailUrl);
+        // FAST MODE: Skip browser fallback for detail pages too
+        const response = await performRequest(detailUrl, {
+            skipBrowserFallback: true,
+            timeout: 3000
+        });
         const $ = cheerio.load(response.data);
         const magnetLink = $('a[href^="magnet:"]').attr('href');
 

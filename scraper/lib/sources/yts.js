@@ -62,20 +62,22 @@ function formatErrorDetails(error, url) {
 }
 
 /**
- * Retry helper with exponential backoff and detailed logging
+ * Retry helper - FAST mode: NO retries, just fail immediately
+ * Speed is critical for real-time searches
  */
-async function retryWithBackoff(fn, retries = 2, delay = 1000, context = '') {
-    for (let i = 0; i <= retries; i++) {
+async function retryWithBackoff(fn, retries = 0, delay = 500, context = '') {
+    // FAST MODE: Only 1 retry max to keep things speedy
+    const maxRetries = Math.min(retries, 1);
+    for (let i = 0; i <= maxRetries; i++) {
         try {
             return await fn();
         } catch (error) {
             const attempt = i + 1;
-            const isLastAttempt = i === retries;
+            const isLastAttempt = i === maxRetries;
 
             if (!isLastAttempt) {
-                const waitTime = delay * Math.pow(2, i);
-                console.log(`YTS [${context}]: Attempt ${attempt}/${retries + 1} failed (${error.code || error.message}), retrying in ${waitTime}ms...`);
-                await new Promise(resolve => setTimeout(resolve, waitTime));
+                console.log(`YTS [${context}]: Attempt ${attempt}/${maxRetries + 1} failed (${error.code || error.message}), retrying in ${delay}ms...`);
+                await new Promise(resolve => setTimeout(resolve, delay));
             } else {
                 throw error;
             }
@@ -92,17 +94,20 @@ export async function searchYTS(imdbId) {
     const errors = [];
     const domains = await getDomains();
 
+    // FAST MODE: Only try first 3 domains max (not all 7+)
+    const domainsToTry = domains.slice(0, 3);
+
     // Try each domain with retry logic
-    for (const apiBase of domains) {
+    for (const apiBase of domainsToTry) {
         const requestUrl = `${apiBase}/list_movies.json?query_term=${imdbId}`;
         try {
             const response = await retryWithBackoff(
                 () => axios.get(`${apiBase}/list_movies.json`, {
                     params: { query_term: imdbId },
-                    timeout: 5000
+                    timeout: 3000 // FAST: 3 second timeout per request
                 }),
-                2,
-                1000,
+                1, // FAST: max 1 retry
+                500,
                 apiBase
             );
 

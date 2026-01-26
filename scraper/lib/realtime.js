@@ -20,8 +20,9 @@ import { getWorkingIndexers } from './healthCheck.js';
 import { searchWithCardigann } from './cardigann/search.js';
 import { getCachedSession } from './cfSolver.js';
 
-// Hospital-grade timeout: Ensures search never hangs
-const MAX_SEARCH_TIMEOUT_MS = 45000; // 45 seconds max for entire search
+// FAST MODE: Reduced timeout for snappy UX
+// If scrapers are blocked, fail fast instead of waiting for FlareSolverr
+const MAX_SEARCH_TIMEOUT_MS = 15000; // 15 seconds max for entire search
 
 // Title cache to avoid repeated API calls
 const titleCache = new Map();
