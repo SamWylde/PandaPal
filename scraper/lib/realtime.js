@@ -16,6 +16,7 @@ import { search1337x } from './sources/t1337x.js';
 import { searchTorrentGalaxy } from './sources/torrentgalaxy.js';
 import { searchBitSearch } from './sources/bitsearch.js';
 import { searchSolidTorrents } from './sources/solidtorrents.js';
+import { searchTorrentio } from './sources/torrentio.js'; // Pre-verified database!
 import { getWorkingIndexers } from './healthCheck.js';
 import { searchWithCardigann } from './cardigann/search.js';
 import { getCachedSession } from './cfSolver.js';
@@ -242,6 +243,21 @@ async function searchTorrentsInternal(params) {
     const selectedProviders = providers?.filter(p => p !== 'smart') || [];
 
     let results = [];
+
+    // PRIORITY SOURCE: Torrentio has pre-verified IMDB mappings!
+    // Query it first when we have an IMDB ID - results are guaranteed relevant
+    if (imdbId && (useSmartMode || selectedProviders.includes('torrentio'))) {
+        try {
+            console.log(`[RealTime] Querying Torrentio (pre-verified database)...`);
+            const torrentioResults = await searchTorrentio(imdbId, type, { season, episode });
+            if (torrentioResults.length > 0) {
+                console.log(`[RealTime] Torrentio returned ${torrentioResults.length} pre-verified results`);
+                results.push(...torrentioResults);
+            }
+        } catch (err) {
+            console.log(`[RealTime] Torrentio failed: ${err.message}`);
+        }
+    }
 
     if (useSmartMode) {
         console.log(`[RealTime] Using SMART mode (health-prioritized indexers)`);
