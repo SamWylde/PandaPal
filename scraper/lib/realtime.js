@@ -362,27 +362,32 @@ async function searchWithPriority(params, indexers) {
     const fastIndexers = sortedIndexers.filter(idx => idx.priority > 60).slice(0, 8);
     const slowIndexers = sortedIndexers.filter(idx => idx.priority <= 60).slice(0, 10);
 
-    // PARALLEL EXECUTION: Fast Tier + Custom Scrapers
-    // This ensures we get high-quality results from popular indexers AND specialty results from custom ones
-    // without one blocking the other or race conditions causing data loss.
+    // PARALLEL EXECUTION: Fast Tier + Legacy Scrapers + Custom Scrapers
+    // Legacy scrapers (YTS, 1337x, etc.) are NOT in the health database,
+    // so we ALWAYS run them alongside the health-prioritized Cardigann indexers.
     const initialPromises = [];
 
-    // 1. Fast Tier
+    // 1. Fast Tier (health-prioritized Cardigann indexers)
     if (fastIndexers.length > 0) {
         console.log(`[RealTime] Fast tier: ${fastIndexers.map(i => i.id).join(', ')}`);
         initialPromises.push(searchIndexerBatch(fastIndexers, params));
     }
 
-    // 2. Custom Scrapers (Always run these)
+    // 2. Legacy Scrapers (YTS, 1337x, TorrentGalaxy, EZTV, etc.) - ALWAYS run these
+    initialPromises.push(runAllLegacyScrapers(params));
+
+    // 3. Custom Scrapers (SolidTorrents, etc.) - ALWAYS run these
     initialPromises.push(runCustomScrapers(params));
 
-    // Wait for both to finish
-    const [fastResults, customResults] = await Promise.all(
+    // Wait for all to finish
+    const results = await Promise.all(
         initialPromises.map(p => p.catch(e => [])) // Catch individual errors so Promise.all doesn't fail
     );
 
-    if (fastResults && fastResults.length > 0) allResults.push(...fastResults);
-    if (customResults && customResults.length > 0) allResults.push(...customResults);
+    // Flatten all results
+    for (const result of results) {
+        if (result && result.length > 0) allResults.push(...result);
+    }
 
     // Check if we need more results
     const totalSoFar = allResults.length;
@@ -520,6 +525,44 @@ async function runCustomScrapers(params) {
     return results
         .filter(r => r.status === 'fulfilled')
         .flatMap(r => r.value || []);
+}
+
+/**
+ * Run ALL legacy scrapers (YTS, 1337x, TorrentGalaxy, EZTV, etc.)
+ * These are hardcoded JavaScript scrapers NOT tracked by health checks.
+ * They're popular and reliable, so we ALWAYS run them in SMART mode.
+ */
+async function runAllLegacyScrapers(params) {
+    const { imdbId, kitsuId, type, season, episode, title } = params;
+    const promises = [];
+
+    console.log(`[RealTime] Running legacy scrapers for ${type}`);
+
+    for (const [id, scraper] of Object.entries(LEGACY_SCRAPERS)) {
+        // Skip if scraper doesn't support this content type
+        if (!scraper.types.includes(type)) continue;
+
+        // Run the scraper with appropriate parameters
+        const searchPromise = runLegacyScraper(id, scraper, params, null)
+            .catch(err => {
+                console.log(`[RealTime] Legacy ${id} failed: ${err.message}`);
+                return [];
+            });
+
+        promises.push(searchPromise);
+    }
+
+    if (promises.length === 0) {
+        return [];
+    }
+
+    const results = await Promise.allSettled(promises);
+    const torrents = results
+        .filter(r => r.status === 'fulfilled')
+        .flatMap(r => r.value || []);
+
+    console.log(`[RealTime] Legacy scrapers returned ${torrents.length} results`);
+    return torrents;
 }
 
 
