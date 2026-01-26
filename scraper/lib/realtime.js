@@ -19,6 +19,7 @@ import { searchSolidTorrents } from './sources/solidtorrents.js';
 import { getWorkingIndexers } from './healthCheck.js';
 import { searchWithCardigann } from './cardigann/search.js';
 import { getCachedSession } from './cfSolver.js';
+import { resolveTitle } from './metadata.js';
 
 // Hospital-grade timeout: Ensures search never hangs
 const MAX_SEARCH_TIMEOUT_MS = 45000; // 45 seconds max for entire search
@@ -159,13 +160,31 @@ export async function searchTorrents(params) {
  */
 async function searchTorrentsInternal(params) {
     const { imdbId, kitsuId, type, season, episode, title, providers, config } = params;
-    const searchQuery = title || imdbId || kitsuId;
+
+    // CRITICAL: Resolve title from IMDB ID if not provided
+    // This is essential for filtering garbage results from bad indexers
+    let resolvedTitle = title;
+    if (!resolvedTitle && imdbId) {
+        try {
+            resolvedTitle = await resolveTitle(imdbId, type);
+        } catch (e) {
+            console.warn(`[RealTime] Title resolution failed: ${e.message}`);
+        }
+    }
+
+    // Use resolved title for search, fall back to IMDB/Kitsu ID
+    const searchQuery = resolvedTitle || imdbId || kitsuId;
 
     console.log(`[RealTime] Starting search for ${searchQuery} (${type})`);
+
+    // Update params with resolved title for downstream use
+    const searchParams = { ...params, title: resolvedTitle };
 
     // Check if user selected specific providers or wants smart mode
     const useSmartMode = !providers || providers.length === 0 || providers.includes('smart');
     const selectedProviders = providers?.filter(p => p !== 'smart') || [];
+
+    let results = [];
 
     if (useSmartMode) {
         console.log(`[RealTime] Using SMART mode (health-prioritized indexers)`);
@@ -181,17 +200,27 @@ async function searchTorrentsInternal(params) {
 
         // If we have health data, use prioritized search
         if (prioritizedIndexers.length > 0 && prioritizedIndexers[0].priority !== undefined) {
-            return searchWithPriority(params, prioritizedIndexers);
+            results = await searchWithPriority(searchParams, prioritizedIndexers);
+        } else {
+            // Fallback to legacy tiered approach
+            console.log(`[RealTime] No health data, falling back to legacy search`);
+            results = await searchLegacy(searchParams);
         }
-
-        // Fallback to legacy tiered approach
-        console.log(`[RealTime] No health data, falling back to legacy search`);
-        return searchLegacy(params);
+    } else {
+        // Manual provider selection - use only selected providers
+        console.log(`[RealTime] Using MANUAL mode with providers: ${selectedProviders.join(', ')}`);
+        results = await searchSelectedProviders(searchParams, selectedProviders);
     }
 
-    // Manual provider selection - use only selected providers
-    console.log(`[RealTime] Using MANUAL mode with providers: ${selectedProviders.join(', ')}`);
-    return searchSelectedProviders(params, selectedProviders);
+    // CRITICAL: Filter results by title relevance
+    // This removes garbage results from indexers that return homepage listings
+    // instead of actual search results (e.g., arab-torrents returning "One Piece"
+    // when we searched for "One Fast Move")
+    if (resolvedTitle && results.length > 0) {
+        results = filterByRelevance(results, resolvedTitle, imdbId);
+    }
+
+    return results;
 }
 
 /**
@@ -535,4 +564,77 @@ export function deduplicateTorrents(torrents) {
     });
 }
 
-export default { searchTorrents, deduplicateTorrents };
+/**
+ * Filter torrents by title relevance
+ * Removes results that don't match the search query
+ *
+ * CRITICAL: This prevents garbage results from indexers that return
+ * homepage listings or unrelated content instead of actual search results.
+ *
+ * @param {Array} torrents - Array of torrent objects
+ * @param {string} searchTitle - The title we searched for
+ * @param {string} imdbId - Optional IMDB ID (some torrents have this in title)
+ * @returns {Array} Filtered torrents that match the search
+ */
+export function filterByRelevance(torrents, searchTitle, imdbId = null) {
+    if (!searchTitle && !imdbId) return torrents;
+    if (!torrents || torrents.length === 0) return torrents;
+
+    // Normalize search title: lowercase, remove special chars, split into words
+    const normalizeTitle = (title) => {
+        if (!title) return [];
+        return title
+            .toLowerCase()
+            .replace(/[^\w\s]/g, ' ')  // Remove punctuation
+            .replace(/\s+/g, ' ')       // Normalize whitespace
+            .trim()
+            .split(' ')
+            .filter(w => w.length > 1); // Remove single chars
+    };
+
+    // Get search keywords (ignore common words)
+    const stopWords = new Set(['the', 'a', 'an', 'and', 'or', 'of', 'to', 'in', 'for', 'on', 'at', 'is', 'it']);
+    const searchWords = normalizeTitle(searchTitle).filter(w => !stopWords.has(w));
+
+    // If we only have stop words or nothing, allow everything
+    if (searchWords.length === 0 && !imdbId) return torrents;
+
+    // For short titles (1-2 significant words), require ALL words to match
+    // For longer titles (3+ words), require at least 60% of words to match
+    const minMatchRatio = searchWords.length <= 2 ? 1.0 : 0.6;
+    const minMatches = Math.max(1, Math.ceil(searchWords.length * minMatchRatio));
+
+    const filtered = torrents.filter(torrent => {
+        const torrentTitle = torrent.title || torrent.name || '';
+        const normalizedTorrent = torrentTitle.toLowerCase();
+
+        // If torrent has IMDB ID and it matches, always include
+        if (imdbId && torrent.imdbId === imdbId) return true;
+
+        // Check if IMDB ID appears in torrent title
+        if (imdbId && normalizedTorrent.includes(imdbId.toLowerCase())) return true;
+
+        // Count matching words
+        let matches = 0;
+        for (const word of searchWords) {
+            // Check if word appears in torrent title
+            // Use word boundary check to avoid partial matches (e.g., "one" matching "stone")
+            const wordRegex = new RegExp(`\\b${word}\\b`, 'i');
+            if (wordRegex.test(torrentTitle)) {
+                matches++;
+            }
+        }
+
+        return matches >= minMatches;
+    });
+
+    // Log filtering stats
+    const removed = torrents.length - filtered.length;
+    if (removed > 0) {
+        console.log(`[RealTime] Title filter: kept ${filtered.length}/${torrents.length} results matching "${searchTitle}" (removed ${removed} irrelevant)`);
+    }
+
+    return filtered;
+}
+
+export default { searchTorrents, deduplicateTorrents, filterByRelevance };
