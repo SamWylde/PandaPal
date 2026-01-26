@@ -141,7 +141,9 @@ export class CardigannEngine {
         // Build query parameters
         const params = this.buildParams(searchConfig.inputs, query, options);
 
-        console.log(`[Cardigann] Fetching: ${searchUrl}`);
+        // Debug: Log search details to help diagnose empty results
+        const paramStr = Object.keys(params).length > 0 ? JSON.stringify(params) : '(no params)';
+        console.log(`[Cardigann] Fetching: ${searchUrl} | Query: "${query || '(empty)'}" | Params: ${paramStr}`);
 
         // Make request with retries
         const response = await this.fetchWithRetry(searchUrl, params, definition);
@@ -198,10 +200,12 @@ export class CardigannEngine {
         let result = template;
 
         // Query variables and their values for both replacement and conditional evaluation
+        // CRITICAL: Ensure query has fallback to prevent "undefined" string in URLs
+        const safeQuery = query || '';
         const vars = {
-            '.Query.Q': query,
-            '.Query.q': query,
-            '.Keywords': query,
+            '.Query.Q': safeQuery,
+            '.Query.q': safeQuery,
+            '.Keywords': safeQuery,
             '.Query.IMDBID': options.imdbId || '',
             '.Query.IMDBIDShort': options.imdbId?.replace('tt', '') || '',
             '.Query.TMDBID': options.tmdbId || '',
@@ -238,8 +242,9 @@ export class CardigannEngine {
         // Then replace simple variables
         for (const [varName, varValue] of Object.entries(vars)) {
             // Handle both {{ .Var }} and {{.Var}} formats
+            // Use nullish coalescing to prevent "undefined" string in URLs
             const escapedVarName = varName.replace(/\./g, '\\.');
-            result = result.replace(new RegExp(`\\{\\{\\s*${escapedVarName}\\s*\\}\\}`, 'g'), varValue);
+            result = result.replace(new RegExp(`\\{\\{\\s*${escapedVarName}\\s*\\}\\}`, 'g'), varValue ?? '');
         }
 
         // CLEANUP: Remove any remaining {{ .Config.* }} or {{ .* }} template tags
