@@ -6,6 +6,33 @@ if (!supabase) {
   console.log('Repository: Supabase client initialized.');
 }
 
+// Simple in-memory lock to prevent concurrent saves for same content
+// Key: contentId (imdbId or kitsuId), Value: Promise
+const saveLocks = new Map();
+
+/**
+ * Acquire a lock for a content ID
+ * Returns a release function to call when done
+ */
+async function acquireSaveLock(contentId) {
+  // Wait for any existing lock to be released
+  while (saveLocks.has(contentId)) {
+    await saveLocks.get(contentId);
+  }
+
+  // Create new lock
+  let releaseLock;
+  const lockPromise = new Promise(resolve => {
+    releaseLock = resolve;
+  });
+  saveLocks.set(contentId, lockPromise);
+
+  return () => {
+    saveLocks.delete(contentId);
+    releaseLock();
+  };
+}
+
 export async function getTorrent(infoHash) {
   if (!supabase) return null;
   const { data, error } = await supabase
@@ -107,10 +134,18 @@ export async function getKitsuIdSeriesEntries(kitsuId, episode) {
 const CACHE_HOURS = 24;
 
 /**
- * Save torrents to Supabase (non-blocking)
+ * Save torrents to Supabase with lock to prevent race conditions
+ * When multiple clients search for the same content simultaneously,
+ * this ensures saves happen sequentially to avoid data loss.
  */
 export async function saveTorrents(torrents) {
   if (!supabase || !torrents.length) return;
+
+  // Get content ID for locking (use first torrent's ID)
+  const contentId = torrents[0]?.imdbId || torrents[0]?.kitsuId || 'unknown';
+
+  // Acquire lock for this content
+  const releaseLock = await acquireSaveLock(contentId);
 
   try {
     const now = new Date().toISOString();
@@ -128,10 +163,14 @@ export async function saveTorrents(torrents) {
       fetched_at: now
     }));
 
-    // Upsert torrents
+    // Upsert torrents - always update seeders to get fresh count
     const { error: torrentError } = await supabase
       .from('torrent')
-      .upsert(torrentRecords, { onConflict: 'infoHash' });
+      .upsert(torrentRecords, {
+        onConflict: 'infoHash',
+        // Update these fields on conflict (merge, don't overwrite)
+        ignoreDuplicates: false
+      });
 
     if (torrentError) {
       console.error('Error saving torrents:', torrentError);
@@ -151,18 +190,24 @@ export async function saveTorrents(torrents) {
       fetched_at: now
     }));
 
-    // Upsert files (will use primary key: infoHash, title)
+    // Upsert files - use onConflict to properly handle duplicates
     const { error: fileError } = await supabase
       .from('file')
-      .upsert(fileRecords, { ignoreDuplicates: true });
+      .upsert(fileRecords, {
+        onConflict: 'infoHash,title',
+        ignoreDuplicates: false // Update fetched_at on re-save
+      });
 
     if (fileError && !fileError.message?.includes('duplicate')) {
       console.error('Error saving files:', fileError);
     }
 
-    console.log(`Repository: Saved ${torrents.length} torrents to Supabase`);
+    console.log(`Repository: Saved ${torrents.length} torrents for ${contentId}`);
   } catch (error) {
     console.error('Repository: Error in saveTorrents:', error);
+  } finally {
+    // Always release lock
+    releaseLock();
   }
 }
 

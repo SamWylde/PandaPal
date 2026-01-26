@@ -301,6 +301,7 @@ async function checkIndexer(indexerId) {
 
 /**
  * Update health metrics in database
+ * Includes circuit breaker: disables indexers after 5 consecutive failures
  */
 async function updateHealthMetrics(indexerId, success, responseTime, workingDomain, error) {
     if (!supabase) {
@@ -320,6 +321,22 @@ async function updateHealthMetrics(indexerId, success, responseTime, workingDoma
         const totalFailures = (current?.total_failures || 0) + (success ? 0 : 1);
         const successRate = (totalSuccesses / totalChecks) * 100;
 
+        // CIRCUIT BREAKER: Track consecutive failures
+        const consecutiveFailures = success ? 0 : (current?.consecutive_failures || 0) + 1;
+        const CIRCUIT_BREAKER_THRESHOLD = 5;
+        const CIRCUIT_BREAKER_COOLDOWN_MS = 2 * 60 * 60 * 1000; // 2 hours
+
+        // If 5+ consecutive failures, disable indexer temporarily
+        let disabledUntil = current?.disabled_until || null;
+        if (consecutiveFailures >= CIRCUIT_BREAKER_THRESHOLD) {
+            disabledUntil = new Date(Date.now() + CIRCUIT_BREAKER_COOLDOWN_MS).toISOString();
+            console.warn(`[HealthCheck] CIRCUIT BREAKER: ${indexerId} disabled for 2 hours after ${consecutiveFailures} consecutive failures`);
+        } else if (success && current?.disabled_until) {
+            // Reset circuit breaker on success
+            disabledUntil = null;
+            console.log(`[HealthCheck] CIRCUIT BREAKER: ${indexerId} re-enabled after successful check`);
+        }
+
         // Calculate rolling average response time
         const prevAvg = current?.avg_response_ms || 0;
         const avgResponseMs = success
@@ -338,7 +355,7 @@ async function updateHealthMetrics(indexerId, success, responseTime, workingDoma
         const updateData = {
             id: indexerId,
             is_public: true,
-            is_enabled: true,
+            is_enabled: disabledUntil ? false : true, // Disable if circuit breaker tripped
             last_check: new Date().toISOString(),
             last_success: success ? new Date().toISOString() : current?.last_success,
             success_rate: successRate.toFixed(2),
@@ -346,6 +363,8 @@ async function updateHealthMetrics(indexerId, success, responseTime, workingDoma
             total_checks: totalChecks,
             total_successes: totalSuccesses,
             total_failures: totalFailures,
+            consecutive_failures: consecutiveFailures,
+            disabled_until: disabledUntil,
             last_error: success ? null : error,
             working_domain: success ? workingDomain : current?.working_domain,
             priority,
@@ -359,7 +378,7 @@ async function updateHealthMetrics(indexerId, success, responseTime, workingDoma
         if (upsertError) {
             console.error(`[HealthCheck] Failed DB update for ${indexerId}: ${upsertError.message}`);
         } else {
-            const errorSuffix = success ? '' : `, error=${error || 'unknown'}`;
+            const errorSuffix = success ? '' : `, error=${error || 'unknown'}, streak=${consecutiveFailures}`;
             console.log(`[HealthCheck] Updated ${indexerId}: success=${success}, priority=${priority}${errorSuffix}`);
         }
 
@@ -468,6 +487,7 @@ export async function runHealthChecks() {
 /**
  * Get prioritized list of working indexers
  * Returns indexers sorted by priority (best first)
+ * Excludes indexers disabled by circuit breaker (until cooldown expires)
  */
 export async function getWorkingIndexers(options = {}) {
     const { minSuccessRate = 20, maxResponseMs = 10000, limit = 20 } = options;
@@ -478,23 +498,39 @@ export async function getWorkingIndexers(options = {}) {
     }
 
     try {
+        const now = new Date().toISOString();
+
+        // Fetch all enabled indexers, then filter out those with active circuit breaker
         const { data, error } = await supabase
             .from('indexer_health')
-            .select('id, priority, success_rate, avg_response_ms, working_domain, content_types')
+            .select('id, priority, success_rate, avg_response_ms, working_domain, content_types, disabled_until, consecutive_failures')
             .eq('is_public', true)
-            .eq('is_enabled', true)
-            .gte('success_rate', minSuccessRate)  // Only return indexers that pass health threshold
+            .gte('success_rate', minSuccessRate)
             .order('priority', { ascending: false })
-            .limit(limit);
+            .limit(limit * 2); // Fetch extra to account for disabled ones
 
         if (error) {
             console.error('[HealthCheck] Failed to fetch working indexers:', error.message);
             return PUBLIC_INDEXERS;
         }
 
-        if (data.length === 0) return PUBLIC_INDEXERS;
+        if (!data || data.length === 0) return PUBLIC_INDEXERS;
 
-        return data.map(row => ({
+        // Filter out indexers with active circuit breaker
+        const activeIndexers = data.filter(row => {
+            if (!row.disabled_until) return true;
+            // Check if cooldown has expired
+            const disabledUntil = new Date(row.disabled_until);
+            const isExpired = disabledUntil <= new Date();
+            if (!isExpired) {
+                console.log(`[HealthCheck] Skipping ${row.id} - circuit breaker active until ${row.disabled_until}`);
+            }
+            return isExpired;
+        }).slice(0, limit);
+
+        if (activeIndexers.length === 0) return PUBLIC_INDEXERS;
+
+        return activeIndexers.map(row => ({
             id: row.id,
             priority: row.priority,
             successRate: row.success_rate,
