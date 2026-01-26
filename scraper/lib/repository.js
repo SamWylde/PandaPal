@@ -164,13 +164,10 @@ export async function saveTorrents(torrents) {
     }));
 
     // Upsert torrents - always update seeders to get fresh count
+    // Note: Supabase automatically uses PRIMARY KEY (infoHash) for conflict resolution
     const { error: torrentError } = await supabase
       .from('torrent')
-      .upsert(torrentRecords, {
-        onConflict: 'infoHash',
-        // Update these fields on conflict (merge, don't overwrite)
-        ignoreDuplicates: false
-      });
+      .upsert(torrentRecords);
 
     if (torrentError) {
       console.error('Error saving torrents:', torrentError);
@@ -190,13 +187,10 @@ export async function saveTorrents(torrents) {
       fetched_at: now
     }));
 
-    // Upsert files - use onConflict to properly handle duplicates
+    // Upsert files - Supabase automatically uses composite PRIMARY KEY (infoHash, title) for conflict resolution
     const { error: fileError } = await supabase
       .from('file')
-      .upsert(fileRecords, {
-        onConflict: 'infoHash,title',
-        ignoreDuplicates: false // Update fetched_at on re-save
-      });
+      .upsert(fileRecords);
 
     if (fileError && !fileError.message?.includes('duplicate')) {
       console.error('Error saving files:', fileError);
