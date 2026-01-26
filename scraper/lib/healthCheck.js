@@ -258,13 +258,14 @@ async function checkIndexer(indexerId) {
 
                         if (flareResult.success && flareResult.status && flareResult.status < 400) {
                             const responseTime = Date.now() - startTime;
-                            console.log(`[HealthCheck] ${indexerId} (${domain}): SUCCESS via FlareSolverr in ${responseTime}ms`);
+                            console.log(`[HealthCheck] ${indexerId} (${domain}): SUCCESS via FlareSolverr in ${responseTime}ms (SLOW - needs solver)`);
                             return {
                                 success: true,
                                 responseTime,
                                 workingDomain: domain,
                                 error: null,
-                                solver: 'flaresolverr'
+                                solver: 'flaresolverr',
+                                requiresSolver: true // SLOW: Needs FlareSolverr to bypass CF
                             };
                         } else {
                             console.log(`[HealthCheck] ${indexerId}: FlareSolverr failed - ${flareResult.error || 'Unknown error'}`);
@@ -296,12 +297,13 @@ async function checkIndexer(indexerId) {
                 continue;
             }
 
-            console.log(`[HealthCheck] ${indexerId} (${domain}): SUCCESS in ${responseTime}ms`);
+            console.log(`[HealthCheck] ${indexerId} (${domain}): SUCCESS in ${responseTime}ms (NO CF block)`);
             return {
                 success: true,
                 responseTime,
                 workingDomain: domain,
-                error: null
+                error: null,
+                requiresSolver: false // FAST: No Cloudflare, can be used without solver
             };
 
         } catch (error) {
@@ -322,8 +324,9 @@ async function checkIndexer(indexerId) {
 /**
  * Update health metrics in database
  * Includes circuit breaker: disables indexers after 5 consecutive failures
+ * @param {boolean} requiresSolver - true if indexer needs FlareSolverr (slow), false if CF-free (fast)
  */
-async function updateHealthMetrics(indexerId, success, responseTime, workingDomain, error) {
+async function updateHealthMetrics(indexerId, success, responseTime, workingDomain, error, requiresSolver = null) {
     if (!supabase) {
         return;
     }
@@ -372,6 +375,10 @@ async function updateHealthMetrics(indexerId, success, responseTime, workingDoma
             (success ? 20 : 0) // Recency bonus for working indexers
         );
 
+        // FAST indexers get priority boost: CF-free indexers score 20 higher
+        const cfFreeBonus = (success && requiresSolver === false) ? 20 : 0;
+        const finalPriority = Math.min(100, priority + cfFreeBonus);
+
         const updateData = {
             id: indexerId,
             is_public: true,
@@ -387,7 +394,8 @@ async function updateHealthMetrics(indexerId, success, responseTime, workingDoma
             disabled_until: disabledUntil,
             last_error: success ? null : error,
             working_domain: success ? workingDomain : current?.working_domain,
-            priority,
+            requires_solver: success ? requiresSolver : current?.requires_solver, // Track if CF-blocked
+            priority: finalPriority, // CF-free indexers get priority boost
             updated_at: new Date().toISOString()
         };
 
@@ -398,8 +406,9 @@ async function updateHealthMetrics(indexerId, success, responseTime, workingDoma
         if (upsertError) {
             console.error(`[HealthCheck] Failed DB update for ${indexerId}: ${upsertError.message}`);
         } else {
+            const solverInfo = requiresSolver === false ? ' [CF-FREE]' : (requiresSolver === true ? ' [NEEDS SOLVER]' : '');
             const errorSuffix = success ? '' : `, error=${error || 'unknown'}, streak=${consecutiveFailures}`;
-            console.log(`[HealthCheck] Updated ${indexerId}: success=${success}, priority=${priority}${errorSuffix}`);
+            console.log(`[HealthCheck] Updated ${indexerId}: success=${success}, priority=${finalPriority}${solverInfo}${errorSuffix}`);
         }
 
     } catch (err) {
@@ -484,9 +493,10 @@ export async function runHealthChecks() {
 
             // Save to DB IMMEDIATELY after each check (data preserved even if job times out later)
             try {
-                await updateHealthMetrics(candidate.id, result.success, result.responseTime, result.workingDomain, result.error);
+                await updateHealthMetrics(candidate.id, result.success, result.responseTime, result.workingDomain, result.error, result.requiresSolver);
                 completed++;
-                console.log(`[HealthCheck] [${completed}/${batch.length}] Saved ${candidate.id}: ${result.success ? 'OK' : 'FAIL'}`);
+                const cfStatus = result.requiresSolver === false ? ' [CF-FREE]' : (result.requiresSolver === true ? ' [NEEDS SOLVER]' : '');
+                console.log(`[HealthCheck] [${completed}/${batch.length}] Saved ${candidate.id}: ${result.success ? 'OK' : 'FAIL'}${cfStatus}`);
             } catch (dbErr) {
                 console.error(`[HealthCheck] DB save failed for ${candidate.id}: ${dbErr.message}`);
                 // Continue to next indexer even if DB save fails
@@ -521,9 +531,10 @@ export async function getWorkingIndexers(options = {}) {
         const now = new Date().toISOString();
 
         // Fetch all enabled indexers, then filter out those with active circuit breaker
+        // Include requires_solver so we can prioritize CF-free indexers for fast searches
         const { data, error } = await supabase
             .from('indexer_health')
-            .select('id, priority, success_rate, avg_response_ms, working_domain, content_types, disabled_until, consecutive_failures')
+            .select('id, priority, success_rate, avg_response_ms, working_domain, content_types, disabled_until, consecutive_failures, requires_solver')
             .eq('is_public', true)
             .gte('success_rate', minSuccessRate)
             .order('priority', { ascending: false })
@@ -556,7 +567,8 @@ export async function getWorkingIndexers(options = {}) {
             successRate: row.success_rate,
             avgResponseMs: row.avg_response_ms,
             workingDomain: row.working_domain,
-            contentTypes: row.content_types || ['movie', 'series']  // Default if not set
+            contentTypes: row.content_types || ['movie', 'series'],  // Default if not set
+            requiresSolver: row.requires_solver // true = needs FlareSolverr (slow), false = CF-free (fast)
         }));
 
     } catch (err) {
@@ -582,9 +594,14 @@ export async function getHealthSummary() {
 
         if (error) throw error;
 
+        const cfFreeCount = data.filter(d => d.requires_solver === false && d.success_rate > 50).length;
+        const cfBlockedCount = data.filter(d => d.requires_solver === true && d.success_rate > 50).length;
+
         const summary = {
             totalIndexers: data.length,
             workingIndexers: data.filter(d => d.success_rate > 50).length,
+            cfFreeIndexers: cfFreeCount,      // FAST: No Cloudflare
+            cfBlockedIndexers: cfBlockedCount, // SLOW: Needs FlareSolverr
             avgSuccessRate: data.reduce((sum, d) => sum + parseFloat(d.success_rate || 0), 0) / data.length || 0,
             avgResponseMs: data.reduce((sum, d) => sum + (d.avg_response_ms || 0), 0) / data.length || 0,
             indexers: data.map(d => ({
@@ -595,7 +612,8 @@ export async function getHealthSummary() {
                 lastCheck: d.last_check,
                 lastSuccess: d.last_success,
                 workingDomain: d.working_domain,
-                lastError: d.last_error
+                lastError: d.last_error,
+                requiresSolver: d.requires_solver // null = unknown, false = CF-free, true = needs solver
             }))
         };
 

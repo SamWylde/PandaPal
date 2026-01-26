@@ -133,6 +133,42 @@ export async function getKitsuIdSeriesEntries(kitsuId, episode) {
 
 const CACHE_HOURS = 24;
 
+// Valid infoHash is exactly 40 hex characters
+const INFO_HASH_REGEX = /^[a-fA-F0-9]{40}$/;
+
+/**
+ * Validate a torrent before saving to database
+ * Returns { valid: boolean, reason?: string }
+ */
+function validateTorrent(torrent) {
+  // Must have infoHash
+  if (!torrent.infoHash) {
+    return { valid: false, reason: 'missing infoHash' };
+  }
+
+  // infoHash must be valid 40-char hex
+  if (!INFO_HASH_REGEX.test(torrent.infoHash)) {
+    return { valid: false, reason: `invalid infoHash format: ${torrent.infoHash}` };
+  }
+
+  // Must have a title
+  if (!torrent.title || torrent.title.trim().length === 0) {
+    return { valid: false, reason: 'missing title' };
+  }
+
+  // Must have content ID (imdbId or kitsuId)
+  if (!torrent.imdbId && !torrent.kitsuId) {
+    return { valid: false, reason: 'missing imdbId and kitsuId' };
+  }
+
+  // Size must be positive if present
+  if (torrent.size !== undefined && torrent.size !== null && torrent.size <= 0) {
+    return { valid: false, reason: 'invalid size' };
+  }
+
+  return { valid: true };
+}
+
 /**
  * Save torrents to Supabase with lock to prevent race conditions
  * When multiple clients search for the same content simultaneously,
@@ -148,10 +184,33 @@ export async function saveTorrents(torrents) {
   const releaseLock = await acquireSaveLock(contentId);
 
   try {
+    // Validate torrents before saving - filter out invalid ones
+    const validTorrents = [];
+    const invalidCount = { total: 0, reasons: {} };
+
+    for (const torrent of torrents) {
+      const validation = validateTorrent(torrent);
+      if (validation.valid) {
+        validTorrents.push(torrent);
+      } else {
+        invalidCount.total++;
+        invalidCount.reasons[validation.reason] = (invalidCount.reasons[validation.reason] || 0) + 1;
+      }
+    }
+
+    if (invalidCount.total > 0) {
+      console.log(`Repository: Filtered out ${invalidCount.total} invalid torrents:`, invalidCount.reasons);
+    }
+
+    if (validTorrents.length === 0) {
+      console.log(`Repository: No valid torrents to save for ${contentId}`);
+      return;
+    }
+
     const now = new Date().toISOString();
 
-    // Prepare torrent records
-    const torrentRecords = torrents.map(t => ({
+    // Prepare torrent records (only from validated torrents)
+    const torrentRecords = validTorrents.map(t => ({
       infoHash: t.infoHash,
       provider: t.provider,
       title: t.title,
@@ -174,8 +233,8 @@ export async function saveTorrents(torrents) {
       return;
     }
 
-    // Prepare file records
-    const fileRecords = torrents.map(t => ({
+    // Prepare file records (only from validated torrents)
+    const fileRecords = validTorrents.map(t => ({
       infoHash: t.infoHash,
       title: t.title,
       size: t.size,
@@ -196,7 +255,7 @@ export async function saveTorrents(torrents) {
       console.error('Error saving files:', fileError);
     }
 
-    console.log(`Repository: Saved ${torrents.length} torrents for ${contentId}`);
+    console.log(`Repository: Saved ${validTorrents.length} torrents for ${contentId}`);
   } catch (error) {
     console.error('Repository: Error in saveTorrents:', error);
   } finally {

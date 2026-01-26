@@ -34,8 +34,12 @@ export async function searchSolidTorrents(query, skipBrowser = false) {
     for (const domain of domains) {
         try {
             const url = `${domain}/search?q=${encodeURIComponent(query)}`;
-            // performRequest handles Cloudflare detection and browser fallback
-            const response = await performRequest(url, { skipBrowserFallback: skipBrowser });
+            // FAST MODE: Skip browser fallback and use short timeout
+            const response = await performRequest(url, {
+                skipBrowserFallback: skipBrowser,
+                timeout: 5000,
+                maxRedirects: 3
+            });
 
             const $ = cheerio.load(response.data);
 
